@@ -16,10 +16,10 @@ import {
     IoToggle,
 } from 'react-icons/io5';
 
-const categories = ['All', 'Starters', 'Main Course', 'Drinks', 'Desserts'];
+const categories = ['All', 'Starters', 'Main Course', 'Pizza', 'Burgers', 'Pasta', 'Rice & Noodles', 'Salads', 'Desserts', 'Beverages', 'Breads'];
 
 const Menu = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, isManager } = useAuth();
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -223,9 +223,9 @@ const Menu = () => {
                         <div key={item.id} className={`glass-card-hover overflow-hidden ${!item.available ? 'opacity-60' : ''}`}>
                             {/* Image */}
                             <div className="h-40 bg-dark-800 overflow-hidden">
-                                {item.imageUrl ? (
+                                {(item.imageUrl || item.image) ? (
                                     <img
-                                        src={item.imageUrl}
+                                        src={item.imageUrl || item.image}
                                         alt={item.name}
                                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
                                     />
@@ -255,7 +255,7 @@ const Menu = () => {
 
                                     <div className="flex items-center gap-2">
                                         {/* Availability toggle */}
-                                        {isAdmin && (
+                                        {(isAdmin || isManager) && (
                                             <button
                                                 onClick={() => toggleAvailability(item)}
                                                 className={`transition-colors ${item.available ? 'text-emerald-400' : 'text-dark-500'}`}
@@ -266,7 +266,7 @@ const Menu = () => {
                                         )}
 
                                         {/* Edit / Delete */}
-                                        {isAdmin && (
+                                        {(isAdmin || isManager) && (
                                             <>
                                                 <button
                                                     onClick={() => openEditModal(item)}

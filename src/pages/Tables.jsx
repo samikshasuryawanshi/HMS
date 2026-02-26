@@ -34,7 +34,13 @@ const Tables = () => {
         tableNumber: '',
         capacity: '',
         status: 'Available',
+        floor: 'Ground Floor',
     });
+    const [activeFloor, setActiveFloor] = useState('All');
+    const [isCreatingFloor, setIsCreatingFloor] = useState(false);
+
+    // Derive unique floors from tables
+    const floors = Array.from(new Set(tables.map(t => t.floor || 'Ground Floor'))).sort();
 
     useEffect(() => {
         const unsub = listenToCollection('tables', (data) => {
@@ -47,8 +53,9 @@ const Tables = () => {
     }, []);
 
     const resetForm = () => {
-        setFormData({ tableNumber: '', capacity: '', status: 'Available' });
+        setFormData({ tableNumber: '', capacity: '', status: 'Available', floor: floors[0] || 'Ground Floor' });
         setEditTable(null);
+        setIsCreatingFloor(false);
     };
 
     const openAddModal = () => {
@@ -62,13 +69,15 @@ const Tables = () => {
             tableNumber: table.tableNumber,
             capacity: table.capacity,
             status: table.status,
+            floor: table.floor || 'Ground Floor',
         });
+        setIsCreatingFloor(false);
         setModalOpen(true);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { tableNumber, capacity, status } = formData;
+        const { tableNumber, capacity, status, floor } = formData;
 
         if (!tableNumber || !capacity) {
             toast.error('Please fill in all fields');
@@ -81,6 +90,7 @@ const Tables = () => {
                     tableNumber: Number(tableNumber),
                     capacity: Number(capacity),
                     status,
+                    floor,
                 });
                 toast.success('Table updated successfully');
             } else {
@@ -88,6 +98,7 @@ const Tables = () => {
                     tableNumber: Number(tableNumber),
                     capacity: Number(capacity),
                     status,
+                    floor,
                 });
                 toast.success('Table added successfully');
             }
@@ -145,6 +156,22 @@ const Tables = () => {
                 ))}
             </div>
 
+            {/* Floor Filter Tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {['All', ...floors].map(floorName => (
+                    <button
+                        key={floorName}
+                        onClick={() => setActiveFloor(floorName)}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap ${activeFloor === floorName
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
+                            }`}
+                    >
+                        {floorName}
+                    </button>
+                ))}
+            </div>
+
             {/* Tables Grid */}
             {tables.length === 0 ? (
                 <div className="glass-card p-12 text-center">
@@ -154,7 +181,7 @@ const Tables = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {tables.map((table) => (
+                    {(activeFloor === 'All' ? tables : tables.filter(t => (t.floor || 'Ground Floor') === activeFloor)).map((table) => (
                         <div
                             key={table.id}
                             className={`border rounded-2xl p-5 text-center transition-all duration-300 hover:scale-[1.03] ${statusColors[table.status]}`}
@@ -162,7 +189,9 @@ const Tables = () => {
                             <div className="text-3xl font-bold text-white mb-1">
                                 {table.tableNumber}
                             </div>
-                            <div className="text-xs opacity-70 mb-3">TABLE</div>
+                            <div className="text-xs font-semibold text-primary-400 opacity-90 mb-3 uppercase tracking-wider">
+                                {table.floor || 'Ground Floor'}
+                            </div>
 
                             <div className="flex items-center justify-center gap-1 text-sm mb-3">
                                 <IoPeopleOutline size={14} />
@@ -252,6 +281,53 @@ const Tables = () => {
                             <option value="Occupied">Occupied</option>
                             <option value="Reserved">Reserved</option>
                         </select>
+                    </div>
+                    <div>
+                        <label className="label-text">Floor</label>
+                        {!isCreatingFloor ? (
+                            <div className="flex gap-2">
+                                <select
+                                    value={formData.floor}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'NEW_FLOOR') {
+                                            setIsCreatingFloor(true);
+                                            setFormData({ ...formData, floor: '' });
+                                        } else {
+                                            setFormData({ ...formData, floor: e.target.value });
+                                        }
+                                    }}
+                                    className="select-field flex-1"
+                                >
+                                    {floors.map(f => (
+                                        <option key={f} value={f}>{f}</option>
+                                    ))}
+                                    <option value="NEW_FLOOR" className="text-primary-400 font-medium">+ Add New Floor...</option>
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={formData.floor}
+                                    onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+                                    placeholder="Enter new floor name..."
+                                    className="input-field flex-1"
+                                    autoFocus
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsCreatingFloor(false);
+                                        setFormData({ ...formData, floor: floors[0] || 'Ground Floor' });
+                                    }}
+                                    className="px-4 rounded-xl bg-dark-800 text-dark-300 hover:text-white transition-colors"
+                                    title="Cancel new floor"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="submit" className="btn-primary flex-1">
