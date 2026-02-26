@@ -1,0 +1,33 @@
+// Protected Route component with optional role-based access
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import Loader from './Loader';
+
+const ProtectedRoute = ({ children, requiredRole }) => {
+    const { currentUser, userRole, loading } = useAuth();
+
+    if (loading) {
+        return <Loader />;
+    }
+
+    if (!currentUser) {
+        return <Navigate to="/login" replace />;
+    }
+
+    // Check role if required
+    if (requiredRole && userRole !== requiredRole) {
+        return (
+            <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+                <div className="glass-card p-8 text-center max-w-md">
+                    <div className="text-6xl mb-4">🚫</div>
+                    <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+                    <p className="text-dark-400">You don't have permission to access this page.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return children;
+};
+
+export default ProtectedRoute;
