@@ -1,4 +1,4 @@
-// Orders Page - Food ordering system with real-time updates
+// Orders Page - Role-based order management with status workflow
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -17,10 +17,22 @@ import {
     IoChevronForwardOutline,
 } from 'react-icons/io5';
 
-const statusFlow = ['Pending', 'Preparing', 'Served', 'Completed'];
+// Full order lifecycle
+const statusFlow = ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served', 'Completed'];
+
+// Which roles can trigger each status transition
+const canAdvance = (currentStatus, role) => {
+    const roleTransitions = {
+        admin: ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served'], // admin can do all
+        manager: ['Pending'],                                             // Pending → Confirmed
+        chef: ['Confirmed', 'Preparing'],                                 // Confirmed → Preparing, Preparing → Ready
+        staff: ['Ready', 'Served'],                                       // Ready → Served, Served → Completed
+    };
+    return roleTransitions[role]?.includes(currentStatus) ?? false;
+};
 
 const Orders = () => {
-    const { isAdmin } = useAuth();
+    const { userRole, isAdmin, isManager, isStaff, userData } = useAuth();
     const [orders, setOrders] = useState([]);
     const [tables, setTables] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
@@ -103,6 +115,8 @@ const Orders = () => {
                 items: orderItems,
                 totalAmount: cartTotal,
                 status: 'Pending',
+                createdBy: userData?.email || '',
+                createdByRole: userRole,
             });
 
             // Update table status to Occupied
@@ -125,13 +139,27 @@ const Orders = () => {
         const currentIndex = statusFlow.indexOf(order.status);
         if (currentIndex < statusFlow.length - 1) {
             const nextStatus = statusFlow[currentIndex + 1];
+
+            // Check if role is allowed to make this transition
+            if (!canAdvance(order.status, userRole)) {
+                toast.error('You don\'t have permission to change this status');
+                return;
+            }
+
             try {
-                await updateDocument('orders', order.id, { status: nextStatus });
+                const updateData = { status: nextStatus };
+
+                // Track who made the transition
+                updateData[`${nextStatus.toLowerCase()}At`] = new Date().toISOString();
+                updateData[`${nextStatus.toLowerCase()}By`] = userData?.email || '';
+
+                await updateDocument('orders', order.id, updateData);
 
                 // If completed, free the table (unless other active orders exist)
                 if (nextStatus === 'Completed') {
+                    const activeStatuses = ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served'];
                     const otherActiveOrders = orders.filter(
-                        (o) => o.id !== order.id && o.tableNumber === order.tableNumber && o.status !== 'Completed'
+                        (o) => o.id !== order.id && o.tableNumber === order.tableNumber && activeStatuses.includes(o.status)
                     );
                     if (otherActiveOrders.length === 0) {
                         const table = tables.find((t) => t.tableNumber === order.tableNumber);
@@ -148,6 +176,13 @@ const Orders = () => {
         }
     };
 
+    // Filter which statuses this role cares about
+    const visibleStatuses = () => {
+        if (isAdmin || isManager) return statusFlow;
+        if (isStaff) return ['Pending', 'Ready', 'Served', 'Completed'];
+        return statusFlow;
+    };
+
     const filteredOrders =
         filter === 'All' ? orders : orders.filter((o) => o.status === filter);
 
@@ -160,7 +195,9 @@ const Orders = () => {
     const statusBadge = (status) => {
         const map = {
             Pending: 'badge-warning',
+            Confirmed: 'badge-info',
             Preparing: 'badge-info',
+            Ready: 'badge-purple',
             Served: 'badge-purple',
             Completed: 'badge-success',
         };
@@ -170,11 +207,32 @@ const Orders = () => {
     const statusIcon = (status) => {
         const map = {
             Pending: '⏳',
+            Confirmed: '✅',
             Preparing: '👨‍🍳',
+            Ready: '🔔',
             Served: '🍽️',
-            Completed: '✅',
+            Completed: '✓',
         };
         return map[status] || '📋';
+    };
+
+    // Can this role create new orders?
+    const canCreateOrder = isAdmin || isManager || isStaff;
+
+    // Get the next status label for a given order (role-aware)
+    const getNextAction = (order) => {
+        if (!canAdvance(order.status, userRole)) return null;
+        const nextIndex = statusFlow.indexOf(order.status) + 1;
+        if (nextIndex >= statusFlow.length) return null;
+
+        const actionLabels = {
+            Pending: '→ Confirm (Send to Kitchen)',
+            Confirmed: '→ Start Preparing',
+            Preparing: '→ Mark Ready',
+            Ready: '→ Mark Served',
+            Served: '→ Mark Completed',
+        };
+        return actionLabels[order.status] || `→ ${statusFlow[nextIndex]}`;
     };
 
     if (loading) return <Loader />;
@@ -187,29 +245,31 @@ const Orders = () => {
                     <h1 className="page-title">Orders</h1>
                     <p className="page-subtitle">{orders.length} total orders</p>
                 </div>
-                <button
-                    onClick={() => {
-                        setCart([]);
-                        setSelectedTable('');
-                        setMenuSearch('');
-                        setModalOpen(true);
-                    }}
-                    className="btn-primary flex items-center gap-2"
-                >
-                    <IoAddOutline size={20} />
-                    New Order
-                </button>
+                {canCreateOrder && (
+                    <button
+                        onClick={() => {
+                            setCart([]);
+                            setSelectedTable('');
+                            setMenuSearch('');
+                            setModalOpen(true);
+                        }}
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        <IoAddOutline size={20} />
+                        New Order
+                    </button>
+                )}
             </div>
 
             {/* Status Filters */}
             <div className="flex gap-2 flex-wrap">
-                {['All', ...statusFlow].map((f) => (
+                {['All', ...visibleStatuses()].map((f) => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${filter === f
-                                ? 'bg-primary-600 text-white'
-                                : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
                             }`}
                     >
                         {f}{' '}
@@ -271,21 +331,26 @@ const Orders = () => {
                                 ))}
                             </div>
 
-                            {/* Total */}
+                            {/* Total + Staff */}
                             <div className="flex justify-between items-center pt-3 border-t border-dark-700/50">
-                                <span className="text-dark-400 text-sm">Total</span>
+                                <div>
+                                    <span className="text-dark-400 text-sm">Total</span>
+                                    {order.createdBy && (
+                                        <p className="text-dark-500 text-xs mt-0.5">📝 {order.createdBy}</p>
+                                    )}
+                                </div>
                                 <span className="text-xl font-bold text-primary-400">
                                     ₹{order.totalAmount?.toLocaleString()}
                                 </span>
                             </div>
 
-                            {/* Advance Status */}
-                            {order.status !== 'Completed' && (
+                            {/* Role-based action button */}
+                            {getNextAction(order) && order.status !== 'Completed' && (
                                 <button
                                     onClick={() => advanceStatus(order)}
                                     className="mt-4 w-full btn-secondary flex items-center justify-center gap-2 py-2.5 text-sm"
                                 >
-                                    Move to {statusFlow[statusFlow.indexOf(order.status) + 1]}
+                                    {getNextAction(order)}
                                     <IoChevronForwardOutline size={16} />
                                 </button>
                             )}

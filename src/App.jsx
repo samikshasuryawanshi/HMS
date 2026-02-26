@@ -11,7 +11,7 @@ import Loader from './components/Loader';
 
 // Eager-loaded auth pages (critical path)
 import Login from './pages/Login';
-import Register from './pages/Register';
+import StaffLogin from './pages/StaffLogin';
 
 // Lazy-loaded protected pages (code-split into separate chunks)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -21,6 +21,9 @@ const Orders = lazy(() => import('./pages/Orders'));
 const Bookings = lazy(() => import('./pages/Bookings'));
 const Bills = lazy(() => import('./pages/Bills'));
 const Reports = lazy(() => import('./pages/Reports'));
+const Staff = lazy(() => import('./pages/Staff'));
+const Kitchen = lazy(() => import('./pages/Kitchen'));
+const BusinessSetup = lazy(() => import('./pages/BusinessSetup'));
 
 function App() {
   return (
@@ -30,7 +33,17 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/staff-login" element={<StaffLogin />} />
+
+            {/* Business Setup (admin only, no Layout wrapper) */}
+            <Route
+              path="/setup"
+              element={
+                <ProtectedRoute>
+                  <BusinessSetup />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected Routes */}
             <Route
@@ -39,6 +52,16 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Dashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/kitchen"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Kitchen />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -64,10 +87,6 @@ function App() {
               }
             />
             <Route
-
-
-
-
               path="/orders"
               element={
                 <ProtectedRoute>
@@ -103,6 +122,16 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Reports />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Layout>
+                    <Staff />
                   </Layout>
                 </ProtectedRoute>
               }

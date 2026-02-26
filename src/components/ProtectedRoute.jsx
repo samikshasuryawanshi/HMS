@@ -1,10 +1,10 @@
-// Protected Route component with optional role-based access
+// Protected Route component with business setup redirect
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Loader from './Loader';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
-    const { currentUser, userRole, loading } = useAuth();
+    const { currentUser, userRole, loading, needsSetup } = useAuth();
 
     if (loading) {
         return <Loader />;
@@ -12,6 +12,11 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
     if (!currentUser) {
         return <Navigate to="/login" replace />;
+    }
+
+    // Admin needs to set up business first
+    if (needsSetup && window.location.pathname !== '/setup') {
+        return <Navigate to="/setup" replace />;
     }
 
     // Check role if required

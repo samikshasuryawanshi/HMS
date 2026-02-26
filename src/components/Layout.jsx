@@ -12,36 +12,43 @@ import {
     IoCalendarOutline,
     IoReceiptOutline,
     IoBarChartOutline,
+    IoPeopleOutline,
+    IoFlameOutline,
     IoLogOutOutline,
     IoMenuOutline,
     IoCloseOutline,
     IoPersonCircleOutline,
 } from 'react-icons/io5';
 
+// roles: which roles can see each nav item
 const navItems = [
-    { path: '/', icon: IoGridOutline, label: 'Dashboard' },
-    { path: '/tables', icon: IoRestaurantOutline, label: 'Tables' },
-    { path: '/menu', icon: IoFastFoodOutline, label: 'Menu' },
-    { path: '/orders', icon: IoCartOutline, label: 'Orders' },
-    { path: '/bookings', icon: IoCalendarOutline, label: 'Bookings' },
-    { path: '/bills', icon: IoReceiptOutline, label: 'Bills' },
-    { path: '/reports', icon: IoBarChartOutline, label: 'Reports' },
+    { path: '/', icon: IoGridOutline, label: 'Dashboard', roles: ['admin', 'manager', 'chef', 'staff'] },
+    { path: '/kitchen', icon: IoFlameOutline, label: 'Kitchen', roles: ['chef'] },
+    { path: '/tables', icon: IoRestaurantOutline, label: 'Tables', roles: ['admin', 'manager', 'staff'] },
+    { path: '/menu', icon: IoFastFoodOutline, label: 'Menu', roles: ['admin', 'manager', 'chef', 'staff'] },
+    { path: '/orders', icon: IoCartOutline, label: 'Orders', roles: ['admin', 'manager', 'staff'] },
+    { path: '/bookings', icon: IoCalendarOutline, label: 'Bookings', roles: ['admin', 'manager', 'staff'] },
+    { path: '/bills', icon: IoReceiptOutline, label: 'Bills', roles: ['admin', 'manager', 'staff'] },
+    { path: '/reports', icon: IoBarChartOutline, label: 'Reports', roles: ['admin', 'manager'] },
+    { path: '/staff', icon: IoPeopleOutline, label: 'Staff', roles: ['admin'] },
 ];
 
 // Preload map for route chunks — triggers import on hover so chunks are cached before click
 const preloadMap = {
     '/': () => import('../pages/Dashboard'),
+    '/kitchen': () => import('../pages/Kitchen'),
     '/tables': () => import('../pages/Tables'),
     '/menu': () => import('../pages/Menu'),
     '/orders': () => import('../pages/Orders'),
     '/bookings': () => import('../pages/Bookings'),
     '/bills': () => import('../pages/Bills'),
     '/reports': () => import('../pages/Reports'),
+    '/staff': () => import('../pages/Staff'),
 };
 
 const Layout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { userData, userRole } = useAuth();
+    const { userData, userRole, isAdmin } = useAuth();
     const navigate = useNavigate();
 
     const handleLogout = async () => {
@@ -90,7 +97,7 @@ const Layout = ({ children }) => {
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navItems.map((item) => (
+                    {navItems.filter(item => item.roles.includes(userRole || 'admin')).map((item) => (
                         <NavLink
                             key={item.path}
                             to={item.path}

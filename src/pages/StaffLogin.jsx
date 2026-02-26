@@ -1,12 +1,12 @@
-// Admin Login Page — Google popup only
+// Staff Login Page — Google popup, email-matched to pre-registered staff
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithGoogle } from '../firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { toast } from 'react-toastify';
 
-const Login = () => {
+const StaffLogin = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -16,37 +16,36 @@ const Login = () => {
             const result = await signInWithGoogle();
             const user = result.user;
 
-            // Check if user doc already exists
-            const userRef = doc(db, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
+            // Search for a staff/chef/manager entry with this email
+            const q = query(
+                collection(db, 'users'),
+                where('email', '==', user.email),
+                where('role', 'in', ['staff', 'chef', 'manager'])
+            );
+            const snap = await getDocs(q);
 
-            if (userSnap.exists()) {
-                const data = userSnap.data();
-                if (data.role !== 'admin') {
-                    toast.error('This account is not an admin. Use Staff Login instead.');
-                    return;
-                }
-                // Existing admin — check if business is set up
-                if (data.businessId) {
-                    toast.success('Welcome back!');
-                    navigate('/');
-                } else {
-                    navigate('/setup');
-                }
-            } else {
-                // New admin — create user doc, redirect to setup
-                await setDoc(userRef, {
-                    name: user.displayName || 'Admin',
-                    email: user.email,
-                    photoURL: user.photoURL || '',
-                    role: 'admin',
-                    createdAt: new Date().toISOString(),
-                });
-                toast.success('Welcome! Let\'s set up your business.');
-                navigate('/setup');
+            if (snap.empty) {
+                toast.error('Your email is not registered. Contact your admin to add you.');
+                return;
             }
+
+            // Found staff entry — update with Google profile data
+            const staffDoc = snap.docs[0];
+            const staffData = staffDoc.data();
+
+            await updateDoc(doc(db, 'users', staffDoc.id), {
+                name: user.displayName || staffData.name || 'Staff',
+                photoURL: user.photoURL || '',
+                googleUid: user.uid,
+                status: 'active',
+                lastLogin: new Date().toISOString(),
+            });
+
+            toast.success(`Welcome, ${user.displayName || 'Staff'}!`);
+            navigate('/');
         } catch (error) {
             if (error.code !== 'auth/popup-closed-by-user') {
+                console.error('Staff login error:', error);
                 toast.error('Sign-in failed. Please try again.');
             }
         } finally {
@@ -58,18 +57,18 @@ const Login = () => {
         <div className="min-h-screen bg-dark-950 flex items-center justify-center p-4">
             {/* Background decoration */}
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary-600/10 rounded-full blur-3xl" />
+                <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+                <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl" />
             </div>
 
             <div className="relative w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/20">
-                        <span className="text-3xl">🍽️</span>
+                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
+                        <span className="text-3xl">👤</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-white">Admin Login</h1>
-                    <p className="text-dark-400 mt-2">Sign in to manage your restaurant</p>
+                    <h1 className="text-3xl font-bold text-white">Staff Login</h1>
+                    <p className="text-dark-400 mt-2">Sign in with the Google account your admin registered</p>
                 </div>
 
                 {/* Google Sign-In */}
@@ -78,7 +77,7 @@ const Login = () => {
                         type="button"
                         onClick={handleGoogleSignIn}
                         disabled={loading}
-                        className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-xl border border-dark-600 bg-dark-800 hover:bg-dark-700 text-white font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-xl border border-emerald-500/30 bg-dark-800 hover:bg-dark-700 text-white font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -90,13 +89,13 @@ const Login = () => {
                                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                 </svg>
-                                Continue with Google
+                                Sign in with Google
                             </>
                         )}
                     </button>
 
                     <p className="text-center text-dark-500 text-xs">
-                        New admins will be asked to register their business after signing in.
+                        Your admin must have registered your email before you can sign in.
                     </p>
 
                     {/* Divider */}
@@ -106,11 +105,11 @@ const Login = () => {
                         <div className="flex-1 h-px bg-dark-700" />
                     </div>
 
-                    {/* Staff login link */}
+                    {/* Admin link */}
                     <p className="text-center text-dark-400 text-sm">
-                        Staff member?{' '}
-                        <Link to="/staff-login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
-                            Staff Login
+                        Admin?{' '}
+                        <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
+                            Admin Login
                         </Link>
                     </p>
                 </div>
@@ -119,4 +118,4 @@ const Login = () => {
     );
 };
 
-export default Login;
+export default StaffLogin;

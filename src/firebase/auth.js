@@ -1,7 +1,5 @@
-// Firebase Authentication helpers
+// Firebase Authentication helpers — Google popup only
 import {
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -12,22 +10,10 @@ import { auth } from './config';
 // Google Auth Provider
 const googleProvider = new GoogleAuthProvider();
 
-// Login with email and password
-export const loginUser = async (email, password) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-};
-
-// Login with Google (popup — instant Firebase Google prompt)
+// Sign in with Google popup (used for both admin and staff)
 export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     return result;
-};
-
-// Register new user
-export const registerUser = async (email, password) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
 };
 
 // Logout
