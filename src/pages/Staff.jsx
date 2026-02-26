@@ -22,7 +22,7 @@ const generateEmpId = (users) => {
 };
 
 const Staff = () => {
-    const { isAdmin, userData } = useAuth();
+    const { isOwner, isManager, isCashier, userData } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -30,12 +30,17 @@ const Staff = () => {
     const [formData, setFormData] = useState({ email: '', role: 'staff' });
 
     useEffect(() => {
+        if (!userData?.businessId) return;
+
+        // Optionally, if the listener supports queries, query by businessId.
+        // Assuming it fetches all, we filter below. A better approach is querying in Firebase.
         const unsub = listenToCollection('users', (data) => {
-            setUsers(data);
+            const businessStaff = data.filter(u => u.businessId === userData.businessId);
+            setUsers(businessStaff);
             setLoading(false);
         });
         return unsub;
-    }, []);
+    }, [userData]);
 
     const handleAddStaff = async (e) => {
         e.preventDefault();
@@ -90,13 +95,13 @@ const Staff = () => {
         }
     };
 
-    if (!isAdmin) {
+    if (!isOwner && !isManager && !isCashier) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="glass-card p-8 text-center max-w-md">
                     <div className="text-6xl mb-4">🚫</div>
-                    <h2 className="text-xl font-bold text-white mb-2">Admin Only</h2>
-                    <p className="text-dark-400">Only admins can manage staff accounts.</p>
+                    <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+                    <p className="text-dark-400">Only authorized roles can manage staff accounts.</p>
                 </div>
             </div>
         );
@@ -104,8 +109,8 @@ const Staff = () => {
 
     if (loading) return <Loader />;
 
-    const staffUsers = users.filter(u => u.role === 'staff');
-    const adminUsers = users.filter(u => u.role === 'admin');
+    const staffUsers = users.filter(u => u.role === 'staff' || u.role === 'chef');
+    const managerUsers = users.filter(u => u.role === 'manager' || u.role === 'cashier');
 
     return (
         <div className="space-y-6">
@@ -114,7 +119,7 @@ const Staff = () => {
                 <div>
                     <h1 className="page-title">Staff Management</h1>
                     <p className="page-subtitle">
-                        {users.length} total • {adminUsers.length} admins • {staffUsers.length} staff
+                        {users.length} total • {managerUsers.length} managers/cashiers • {staffUsers.length} staff
                     </p>
                 </div>
                 <button
@@ -147,9 +152,11 @@ const Staff = () => {
                                             className="w-10 h-10 rounded-xl object-cover"
                                         />
                                     ) : (
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold ${user.role === 'admin'
-                                                ? 'bg-gradient-to-br from-amber-500 to-amber-700'
-                                                : 'bg-gradient-to-br from-blue-500 to-blue-700'
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold ${user.role === 'manager'
+                                            ? 'bg-gradient-to-br from-amber-500 to-amber-700'
+                                            : user.role === 'cashier'
+                                                ? 'bg-gradient-to-br from-blue-500 to-blue-700'
+                                                : 'bg-gradient-to-br from-emerald-500 to-emerald-700'
                                             }`}>
                                             {(user.name || user.email)?.charAt(0)?.toUpperCase() || '?'}
                                         </div>
@@ -162,7 +169,7 @@ const Staff = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className={user.role === 'admin' ? 'badge-warning' : 'badge-info'}>
+                                    <span className={user.role === 'manager' ? 'badge-warning' : user.role === 'cashier' ? 'badge-info' : 'badge-success'}>
                                         {user.role}
                                     </span>
                                 </div>
@@ -177,13 +184,14 @@ const Staff = () => {
                                         </span>
                                     )}
                                     <span className={`text-xs px-2 py-0.5 rounded-md ${user.status === 'active'
-                                            ? 'text-emerald-400 bg-emerald-500/10'
-                                            : 'text-amber-400 bg-amber-500/10'
+                                        ? 'text-emerald-400 bg-emerald-500/10'
+                                        : 'text-amber-400 bg-amber-500/10'
                                         }`}>
                                         {user.status === 'active' ? '● Active' : '○ Pending'}
                                     </span>
                                 </div>
-                                {user.role === 'staff' && (
+                                {/* Delete rules: Owner can delete any (except another owner/themself), Manager can delete cashier/chef/staff, Cashier can delete staff */}
+                                {user.role !== 'owner' && (isOwner || (isManager && user.role !== 'manager') || (isCashier && user.role === 'staff')) && (
                                     <button
                                         onClick={() => handleDelete(user)}
                                         className="p-1.5 rounded-lg hover:bg-red-500/20 text-dark-400 hover:text-red-400 transition-colors"
@@ -235,9 +243,11 @@ const Staff = () => {
                                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                 className="select-field pl-11"
                             >
+                                {/* Owner can create Managers. Managers can create Cashier, Chef, Staff. Cashiers create Staff. */}
+                                {isOwner && <option value="manager">Manager</option>}
+                                {(isOwner || isManager) && <option value="cashier">Cashier</option>}
+                                {(isOwner || isManager) && <option value="chef">Chef</option>}
                                 <option value="staff">Staff (Waiter)</option>
-                                <option value="chef">Chef</option>
-                                <option value="manager">Manager</option>
                             </select>
                         </div>
                     </div>

@@ -1,45 +1,128 @@
-// Admin Login Page — Google popup only
+// Segmented Login Page
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle } from '../firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { toast } from 'react-toastify';
+import {
+    IoArrowForwardOutline,
+    IoPeopleOutline,
+    IoBriefcaseOutline,
+    IoStorefrontOutline,
+    IoAddCircleOutline,
+} from 'react-icons/io5';
 
 const Login = () => {
     const [loading, setLoading] = useState(false);
+    const [activeAction, setActiveAction] = useState(null);
     const navigate = useNavigate();
 
-    const handleGoogleSignIn = async () => {
+    const handleRoleLogin = async (allowedRoles, actionName) => {
         setLoading(true);
+        setActiveAction(actionName);
         try {
             const result = await signInWithGoogle();
             const user = result.user;
 
-            // Check if user doc already exists
+            if (allowedRoles.includes('owner')) {
+                // Owner logs in by UID directly
+                const userRef = doc(db, 'users', user.uid);
+                const userSnap = await getDoc(userRef);
+
+                if (userSnap.exists()) {
+                    const data = userSnap.data();
+                    if (data.role !== 'owner') {
+                        toast.error('Access Denied. You are not registered as an Owner.');
+                        return;
+                    }
+
+                    if (!data.businessId) {
+                        toast.info('Continue configuring your business.');
+                        navigate('/setup');
+                    } else {
+                        toast.success('Welcome back, Owner!');
+                        navigate('/');
+                    }
+                } else {
+                    toast.error('Owner account not found. Please use "Setup Business" to register.');
+                }
+                return;
+            }
+
+            // For Staff / Manager, we search by email
+            const q = query(
+                collection(db, 'users'),
+                where('email', '==', user.email)
+            );
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                const staffDoc = snap.docs[0];
+                const staffData = staffDoc.data();
+
+                if (!allowedRoles.includes(staffData.role)) {
+                    toast.error(`Access Denied. This login is for ${actionName} only.`);
+                    return;
+                }
+
+                if (!staffData.businessId) {
+                    toast.error('Not authorized. Your account is not linked to an active business.');
+                    return;
+                }
+
+                // First time login optimization for staff: update their profile fields
+                await updateDoc(doc(db, 'users', staffDoc.id), {
+                    name: user.displayName || staffData.name || 'Staff',
+                    photoURL: user.photoURL || '',
+                    googleUid: user.uid,
+                    status: 'active',
+                    lastLogin: new Date().toISOString(),
+                });
+
+                toast.success(`Welcome, ${user.displayName || 'Staff'}!`);
+                navigate('/');
+            } else {
+                toast.error(`Your email is not registered for ${actionName}. Contact your manager.`);
+            }
+        } catch (error) {
+            if (error.code !== 'auth/popup-closed-by-user') {
+                console.error(error);
+                toast.error('Sign-in failed. Please try again.');
+            }
+        } finally {
+            setLoading(false);
+            setActiveAction(null);
+        }
+    };
+
+    const handleSetupBusiness = async () => {
+        setLoading(true);
+        setActiveAction('Setup');
+        try {
+            const result = await signInWithGoogle();
+            const user = result.user;
+
             const userRef = doc(db, 'users', user.uid);
             const userSnap = await getDoc(userRef);
 
             if (userSnap.exists()) {
                 const data = userSnap.data();
-                if (data.role !== 'admin') {
-                    toast.error('This account is not an admin. Use Staff Login instead.');
-                    return;
-                }
-                // Existing admin — check if business is set up
                 if (data.businessId) {
-                    toast.success('Welcome back!');
+                    toast.info('You already have a business set up.');
                     navigate('/');
-                } else {
+                } else if (data.role === 'owner') {
                     navigate('/setup');
+                } else {
+                    toast.error('This account is already registered as staff.');
                 }
             } else {
-                // New admin — create user doc, redirect to setup
+                // New owner — create user doc, redirect to setup
                 await setDoc(userRef, {
-                    name: user.displayName || 'Admin',
+                    name: user.displayName || 'Owner',
                     email: user.email,
                     photoURL: user.photoURL || '',
-                    role: 'admin',
+                    role: 'owner',
                     createdAt: new Date().toISOString(),
                 });
                 toast.success('Welcome! Let\'s set up your business.');
@@ -47,76 +130,121 @@ const Login = () => {
             }
         } catch (error) {
             if (error.code !== 'auth/popup-closed-by-user') {
+                console.error(error);
                 toast.error('Sign-in failed. Please try again.');
             }
         } finally {
             setLoading(false);
+            setActiveAction(null);
         }
     };
 
     return (
-        <div className="min-h-screen bg-dark-950 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-dark-950 flex shadow-2xl items-center justify-center p-4">
             {/* Background decoration */}
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary-600/10 rounded-full blur-3xl" />
+                <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl opacity-50" />
+                <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl opacity-50" />
             </div>
 
-            <div className="relative w-full max-w-md">
-                {/* Logo */}
+            <div className="relative w-full max-w-lg">
+                {/* Header */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/20">
                         <span className="text-3xl">🍽️</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-white">Admin Login</h1>
-                    <p className="text-dark-400 mt-2">Sign in to manage your restaurant</p>
+                    <h1 className="text-3xl font-bold text-white">RestaurantPro</h1>
+                    <p className="text-dark-400 mt-2">Select your role to sign in</p>
                 </div>
 
-                {/* Google Sign-In */}
-                <div className="glass-card p-8 space-y-5">
-                    <button
-                        type="button"
-                        onClick={handleGoogleSignIn}
+                <div className="glass-card p-6 sm:p-8 space-y-4">
+                    <ActionButton
+                        onClick={() => handleRoleLogin(['staff', 'chef', 'cashier'], 'Staff')}
                         disabled={loading}
-                        className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-xl border border-dark-600 bg-dark-800 hover:bg-dark-700 text-white font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <>
-                                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                </svg>
-                                Continue with Google
-                            </>
-                        )}
-                    </button>
+                        loading={activeAction === 'Staff'}
+                        icon={<IoPeopleOutline size={22} className="text-emerald-400" />}
+                        title="Staff Login"
+                        subtitle="Waiters, Chefs, and Cashiers"
+                        borderColor="hover:border-emerald-500/50"
+                    />
 
-                    <p className="text-center text-dark-500 text-xs">
-                        New admins will be asked to register their business after signing in.
-                    </p>
+                    <ActionButton
+                        onClick={() => handleRoleLogin(['manager'], 'Manager')}
+                        disabled={loading}
+                        loading={activeAction === 'Manager'}
+                        icon={<IoBriefcaseOutline size={22} className="text-blue-400" />}
+                        title="Manager Login"
+                        subtitle="Restaurant Managers"
+                        borderColor="hover:border-blue-500/50"
+                    />
+
+                    <ActionButton
+                        onClick={() => handleRoleLogin(['owner'], 'Owner')}
+                        disabled={loading}
+                        loading={activeAction === 'Owner'}
+                        icon={<IoStorefrontOutline size={22} className="text-primary-400" />}
+                        title="Owner Login"
+                        subtitle="Business Owners"
+                        borderColor="hover:border-primary-500/50"
+                    />
 
                     {/* Divider */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 py-2">
                         <div className="flex-1 h-px bg-dark-700" />
-                        <span className="text-dark-500 text-xs uppercase tracking-wider">or</span>
+                        <span className="text-dark-500 text-xs text-center uppercase tracking-wider font-semibold">New Business?</span>
                         <div className="flex-1 h-px bg-dark-700" />
                     </div>
 
-                    {/* Staff login link */}
-                    <p className="text-center text-dark-400 text-sm">
-                        Staff member?{' '}
-                        <Link to="/staff-login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
-                            Staff Login
-                        </Link>
-                    </p>
+                    <button
+                        type="button"
+                        onClick={handleSetupBusiness}
+                        disabled={loading}
+                        className="w-full flex items-center justify-between p-4 rounded-xl border border-primary-500/30 bg-primary-500/10 hover:bg-primary-500/20 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="p-2 bg-primary-500/20 rounded-lg group-hover:bg-primary-500/30 transition-colors">
+                                <IoAddCircleOutline size={22} className="text-primary-400" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="text-white font-semibold">Setup Your Business</h3>
+                                <p className="text-primary-300/70 text-sm mt-0.5">Register a new restaurant</p>
+                            </div>
+                        </div>
+                        {activeAction === 'Setup' ? (
+                            <div className="w-5 h-5 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
+                        ) : (
+                            <IoArrowForwardOutline className="text-primary-400 group-hover:translate-x-1 transition-transform" size={20} />
+                        )}
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
+
+// Helper component for the role buttons
+const ActionButton = ({ onClick, disabled, loading, icon, title, subtitle, borderColor }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between p-4 rounded-xl border border-dark-600 bg-dark-800 hover:bg-dark-700 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group ${borderColor}`}
+    >
+        <div className="flex items-center gap-4">
+            <div className="p-2 bg-dark-700 rounded-lg group-hover:bg-dark-600 transition-colors">
+                {icon}
+            </div>
+            <div className="text-left">
+                <h3 className="text-white font-semibold">{title}</h3>
+                <p className="text-dark-400 text-sm mt-0.5">{subtitle}</p>
+            </div>
+        </div>
+        {loading ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        ) : (
+            <IoArrowForwardOutline className="text-dark-400 group-hover:text-white group-hover:translate-x-1 transition-all" size={20} />
+        )}
+    </button>
+);
 
 export default Login;

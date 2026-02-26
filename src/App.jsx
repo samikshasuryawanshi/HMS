@@ -11,7 +11,6 @@ import Loader from './components/Loader';
 
 // Eager-loaded auth pages (critical path)
 import Login from './pages/Login';
-import StaffLogin from './pages/StaffLogin';
 
 // Lazy-loaded protected pages (code-split into separate chunks)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -33,7 +32,7 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
-            <Route path="/staff-login" element={<StaffLogin />} />
+            <Route path="/staff-login" element={<Navigate to="/login" replace />} />
 
             {/* Business Setup (admin only, no Layout wrapper) */}
             <Route
@@ -129,7 +128,7 @@ function App() {
             <Route
               path="/staff"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRole={['owner', 'manager', 'cashier']}>
                   <Layout>
                     <Staff />
                   </Layout>

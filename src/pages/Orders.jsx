@@ -6,6 +6,7 @@ import {
     addDocument,
     updateDocument,
 } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
@@ -23,8 +24,8 @@ const statusFlow = ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served', 'Com
 // Which roles can trigger each status transition
 const canAdvance = (currentStatus, role) => {
     const roleTransitions = {
-        admin: ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served'], // admin can do all
-        manager: ['Pending'],                                             // Pending → Confirmed
+        manager: ['Pending', 'Confirmed', 'Preparing', 'Ready', 'Served'], // manager can do all
+        cashier: ['Pending'],                                             // Pending → Confirmed
         chef: ['Confirmed', 'Preparing'],                                 // Confirmed → Preparing, Preparing → Ready
         staff: ['Ready', 'Served'],                                       // Ready → Served, Served → Completed
     };
@@ -32,7 +33,7 @@ const canAdvance = (currentStatus, role) => {
 };
 
 const Orders = () => {
-    const { userRole, isAdmin, isManager, isStaff, userData } = useAuth();
+    const { userRole, isManager, isCashier, isStaff, userData } = useAuth();
     const [orders, setOrders] = useState([]);
     const [tables, setTables] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
@@ -48,20 +49,24 @@ const Orders = () => {
     useEffect(() => {
         const unsubs = [];
         unsubs.push(
-            listenToCollection('orders', (data) => {
-                data.sort((a, b) => {
-                    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-                    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-                    return dateB - dateA;
-                });
-                setOrders(data);
-                setLoading(false);
-            })
+            listenToCollection(
+                'orders',
+                (data) => {
+                    data.sort((a, b) => {
+                        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                        return dateB - dateA;
+                    });
+                    setOrders(data);
+                    setLoading(false);
+                },
+                [where('businessId', '==', userData?.businessId)]
+            )
         );
-        unsubs.push(listenToCollection('tables', setTables));
-        unsubs.push(listenToCollection('menu', setMenuItems));
+        unsubs.push(listenToCollection('tables', setTables, [where('businessId', '==', userData?.businessId)]));
+        unsubs.push(listenToCollection('menu', setMenuItems, [where('businessId', '==', userData?.businessId)]));
         return () => unsubs.forEach((u) => u());
-    }, []);
+    }, [userData]);
 
     // Cart functions
     const addToCart = (item) => {
@@ -117,6 +122,7 @@ const Orders = () => {
                 status: 'Pending',
                 createdBy: userData?.email || '',
                 createdByRole: userRole,
+                businessId: userData?.businessId,
             });
 
             // Update table status to Occupied
@@ -178,7 +184,7 @@ const Orders = () => {
 
     // Filter which statuses this role cares about
     const visibleStatuses = () => {
-        if (isAdmin || isManager) return statusFlow;
+        if (isManager || isCashier) return statusFlow;
         if (isStaff) return ['Pending', 'Ready', 'Served', 'Completed'];
         return statusFlow;
     };
@@ -217,7 +223,7 @@ const Orders = () => {
     };
 
     // Can this role create new orders?
-    const canCreateOrder = isAdmin || isManager || isStaff;
+    const canCreateOrder = isManager || isCashier || isStaff;
 
     // Get the next status label for a given order (role-aware)
     const getNextAction = (order) => {

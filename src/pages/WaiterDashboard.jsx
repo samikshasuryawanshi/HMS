@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, updateDocument } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
@@ -24,6 +25,7 @@ const WaiterDashboard = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        if (!userData?.businessId) return;
         const unsubs = [];
         unsubs.push(listenToCollection('orders', (data) => {
             data.sort((a, b) => {
@@ -33,10 +35,10 @@ const WaiterDashboard = () => {
             });
             setOrders(data);
             setLoading(false);
-        }));
-        unsubs.push(listenToCollection('tables', setTables));
+        }, [where('businessId', '==', userData.businessId)]));
+        unsubs.push(listenToCollection('tables', setTables, [where('businessId', '==', userData.businessId)]));
         return () => unsubs.forEach(u => u());
-    }, []);
+    }, [userData]);
 
     const activeOrders = orders.filter(o => !['Completed'].includes(o.status));
     const myOrders = activeOrders.filter(o => o.createdBy === userData?.email);
@@ -83,7 +85,7 @@ const WaiterDashboard = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="page-title">👋 Hey, {userData?.name || 'Waiter'}</h1>
+                    <h1 className="page-title">👋 Hey, {userData?.name || 'Steward'}</h1>
                     <p className="page-subtitle">Your active orders and tasks</p>
                 </div>
                 <button onClick={() => navigate('/orders')} className="btn-primary flex items-center gap-2">

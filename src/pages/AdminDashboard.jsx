@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import StatCard from '../components/StatCard';
 import Loader from '../components/Loader';
 import {
@@ -33,13 +34,14 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!userData?.businessId) return;
         const unsubs = [];
-        unsubs.push(listenToCollection('tables', (data) => { setTables(data); setLoading(false); }));
-        unsubs.push(listenToCollection('orders', (data) => setOrders(data)));
-        unsubs.push(listenToCollection('menu', (data) => setMenu(data)));
-        unsubs.push(listenToCollection('bills', (data) => setBills(data)));
+        unsubs.push(listenToCollection('tables', (data) => { setTables(data); setLoading(false); }, [where('businessId', '==', userData.businessId)]));
+        unsubs.push(listenToCollection('orders', (data) => setOrders(data), [where('businessId', '==', userData.businessId)]));
+        unsubs.push(listenToCollection('menu', (data) => setMenu(data), [where('businessId', '==', userData.businessId)]));
+        unsubs.push(listenToCollection('bills', (data) => setBills(data), [where('businessId', '==', userData.businessId)]));
         return () => unsubs.forEach(unsub => unsub());
-    }, []);
+    }, [userData]);
 
     const activeOrders = orders.filter(o => o.status !== 'Completed').length;
     const todayStr = new Date().toDateString();

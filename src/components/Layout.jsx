@@ -22,15 +22,15 @@ import {
 
 // roles: which roles can see each nav item
 const navItems = [
-    { path: '/', icon: IoGridOutline, label: 'Dashboard', roles: ['admin', 'manager', 'chef', 'staff'] },
+    { path: '/', icon: IoGridOutline, label: 'Dashboard', roles: ['owner', 'manager', 'cashier', 'chef', 'staff'] },
     { path: '/kitchen', icon: IoFlameOutline, label: 'Kitchen', roles: ['chef'] },
-    { path: '/tables', icon: IoRestaurantOutline, label: 'Tables', roles: ['admin', 'manager', 'staff'] },
-    { path: '/menu', icon: IoFastFoodOutline, label: 'Menu', roles: ['admin', 'manager', 'chef', 'staff'] },
-    { path: '/orders', icon: IoCartOutline, label: 'Orders', roles: ['admin', 'manager', 'staff'] },
-    { path: '/bookings', icon: IoCalendarOutline, label: 'Bookings', roles: ['admin', 'manager', 'staff'] },
-    { path: '/bills', icon: IoReceiptOutline, label: 'Bills', roles: ['admin', 'manager', 'staff'] },
-    { path: '/reports', icon: IoBarChartOutline, label: 'Reports', roles: ['admin', 'manager'] },
-    { path: '/staff', icon: IoPeopleOutline, label: 'Staff', roles: ['admin'] },
+    { path: '/tables', icon: IoRestaurantOutline, label: 'Tables', roles: ['manager', 'cashier', 'staff'] },
+    { path: '/menu', icon: IoFastFoodOutline, label: 'Menu', roles: ['manager', 'cashier', 'chef', 'staff'] },
+    { path: '/orders', icon: IoCartOutline, label: 'Orders', roles: ['manager', 'cashier', 'staff'] },
+    { path: '/bookings', icon: IoCalendarOutline, label: 'Bookings', roles: ['manager', 'cashier', 'staff'] },
+    { path: '/bills', icon: IoReceiptOutline, label: 'Bills', roles: ['manager', 'cashier', 'staff'] },
+    { path: '/reports', icon: IoBarChartOutline, label: 'Reports', roles: ['manager', 'cashier'] },
+    { path: '/staff', icon: IoPeopleOutline, label: 'Staff', roles: ['owner', 'manager', 'cashier'] },
 ];
 
 // Preload map for route chunks
@@ -67,14 +67,15 @@ const Layout = ({ children }) => {
         if (loader) loader();
     };
 
-    const filteredNavItems = navItems.filter(item => item.roles.includes(userRole || 'admin'));
+    const filteredNavItems = navItems.filter(item => item.roles.includes(userRole || 'manager'));
 
     // For mobile bottom nav, pick up to 5 most important items
     const mobileNavItems = filteredNavItems.slice(0, 5);
 
     const roleBadge = {
-        admin: { label: 'Admin', color: 'text-primary-400' },
+        owner: { label: 'Owner', color: 'text-primary-400' },
         manager: { label: 'Manager', color: 'text-blue-400' },
+        cashier: { label: 'Cashier', color: 'text-amber-400' },
         chef: { label: 'Chef', color: 'text-amber-400' },
         staff: { label: 'Waiter', color: 'text-emerald-400' },
     };
@@ -169,7 +170,7 @@ const Layout = ({ children }) => {
                     <div className="flex items-center justify-between px-4 md:px-6 h-14">
                         {/* Left: hamburger (mobile) + page title */}
                         <div className="flex items-center gap-3">
-                            
+
 
                             {/* Mobile logo (visible only when sidebar is hidden) */}
                             <div className="lg:hidden flex items-center gap-2">

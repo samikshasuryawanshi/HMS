@@ -15,10 +15,7 @@ import {
 const businessTypes = [
     { value: 'restaurant', label: '🍽️ Restaurant', desc: 'Full-service dining' },
     { value: 'cafe', label: '☕ Café', desc: 'Coffee & light meals' },
-    { value: 'hotel', label: '🏨 Hotel', desc: 'Accommodation & dining' },
     { value: 'bar', label: '🍸 Bar & Lounge', desc: 'Drinks & nightlife' },
-    { value: 'cloud_kitchen', label: '🍳 Cloud Kitchen', desc: 'Delivery-only kitchen' },
-    { value: 'food_truck', label: '🚚 Food Truck', desc: 'Mobile food service' },
 ];
 
 const BusinessSetup = () => {
@@ -49,6 +46,7 @@ const BusinessSetup = () => {
                 address: formData.address,
                 phone: formData.phone,
                 ownerId: currentUser.uid,
+                ownerEmail: currentUser.email,
                 createdAt: new Date().toISOString(),
             });
 
@@ -99,8 +97,8 @@ const BusinessSetup = () => {
                                     type="button"
                                     onClick={() => setFormData({ ...formData, type: type.value })}
                                     className={`p-3 rounded-xl border text-center transition-all duration-200 ${formData.type === type.value
-                                            ? 'border-primary-500 bg-primary-500/10 text-white'
-                                            : 'border-dark-700 bg-dark-800/50 text-dark-400 hover:border-dark-500 hover:text-white'
+                                        ? 'border-primary-500 bg-primary-500/10 text-white'
+                                        : 'border-dark-700 bg-dark-800/50 text-dark-400 hover:border-dark-500 hover:text-white'
                                         }`}
                                 >
                                     <div className="text-2xl mb-1">{type.label.split(' ')[0]}</div>

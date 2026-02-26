@@ -6,6 +6,7 @@ import {
     addDocument,
     deleteDocument,
 } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import { generateReceipt } from '../utils/generateReceipt';
@@ -19,7 +20,7 @@ import {
 } from 'react-icons/io5';
 
 const Bills = () => {
-    const { isAdmin } = useAuth();
+    const { isManager, isCashier, userData } = useAuth();
     const [bills, setBills] = useState([]);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,19 +31,23 @@ const Bills = () => {
     useEffect(() => {
         const unsubs = [];
         unsubs.push(
-            listenToCollection('bills', (data) => {
-                data.sort((a, b) => {
-                    const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || 0);
-                    const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || 0);
-                    return dateB - dateA;
-                });
-                setBills(data);
-                setLoading(false);
-            })
+            listenToCollection(
+                'bills',
+                (data) => {
+                    data.sort((a, b) => {
+                        const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || 0);
+                        const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || 0);
+                        return dateB - dateA;
+                    });
+                    setBills(data);
+                    setLoading(false);
+                },
+                [where('businessId', '==', userData?.businessId)]
+            )
         );
-        unsubs.push(listenToCollection('orders', setOrders));
+        unsubs.push(listenToCollection('orders', setOrders, [where('businessId', '==', userData?.businessId)]));
         return () => unsubs.forEach((u) => u());
-    }, []);
+    }, [userData]);
 
     // Completed orders that haven't been billed yet
     const completedOrders = orders.filter((o) => {
@@ -84,6 +89,7 @@ const Bills = () => {
                 gst,
                 total,
                 date: new Date().toISOString(),
+                businessId: userData?.businessId,
             };
 
             await addDocument('bills', billData);
@@ -125,17 +131,19 @@ const Bills = () => {
                     <h1 className="page-title">Billing</h1>
                     <p className="page-subtitle">{bills.length} bills generated</p>
                 </div>
-                <button
-                    onClick={() => {
-                        setSelectedOrder(null);
-                        setGstPercent(5);
-                        setModalOpen(true);
-                    }}
-                    className="btn-primary flex items-center gap-2"
-                >
-                    <IoAddOutline size={20} />
-                    Generate Bill
-                </button>
+                {(isManager || isCashier || userData?.role === 'owner') && (
+                    <button
+                        onClick={() => {
+                            setSelectedOrder(null);
+                            setGstPercent(5);
+                            setModalOpen(true);
+                        }}
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        <IoAddOutline size={20} />
+                        Generate Bill
+                    </button>
+                )}
             </div>
 
             {/* Bills List */}
@@ -221,7 +229,7 @@ const Bills = () => {
                                         <IoDownloadOutline size={16} />
                                         Receipt
                                     </button>
-                                    {isAdmin && (
+                                    {(isManager || isCashier) && (
                                         <button
                                             onClick={() => handleDelete(bill)}
                                             className="p-2 rounded-xl hover:bg-red-500/20 text-dark-400 hover:text-red-400 transition-colors"
@@ -258,8 +266,8 @@ const Bills = () => {
                                         key={order.id}
                                         onClick={() => handleSelectOrder(order)}
                                         className={`p-3 rounded-xl cursor-pointer transition-all ${selectedOrder?.id === order.id
-                                                ? 'bg-primary-600/20 border border-primary-500/30'
-                                                : 'bg-dark-800 hover:bg-dark-700 border border-transparent'
+                                            ? 'bg-primary-600/20 border border-primary-500/30'
+                                            : 'bg-dark-800 hover:bg-dark-700 border border-transparent'
                                             }`}
                                     >
                                         <div className="flex justify-between">
@@ -297,8 +305,8 @@ const Bills = () => {
                                     type="button"
                                     onClick={() => setGstPercent(rate)}
                                     className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${gstPercent === rate
-                                            ? 'bg-primary-600 text-white'
-                                            : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
+                                        ? 'bg-primary-600 text-white'
+                                        : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
                                         }`}
                                 >
                                     {rate}%

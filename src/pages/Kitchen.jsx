@@ -2,30 +2,36 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, updateDocument } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
 import { IoFlameOutline, IoCheckmarkCircleOutline, IoTimeOutline } from 'react-icons/io5';
 
 const Kitchen = () => {
-    const { isChef } = useAuth();
+    const { isChef, userData } = useAuth();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsub = listenToCollection('orders', (data) => {
-            // Only show orders relevant to kitchen
-            const kitchenOrders = data
-                .filter(o => ['Confirmed', 'Preparing'].includes(o.status))
-                .sort((a, b) => {
-                    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-                    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-                    return dateA - dateB; // Oldest first (FIFO)
-                });
-            setOrders(kitchenOrders);
-            setLoading(false);
-        });
+        if (!userData?.businessId) return;
+        const unsub = listenToCollection(
+            'orders',
+            (data) => {
+                // Only show orders relevant to kitchen
+                const kitchenOrders = data
+                    .filter(o => ['Confirmed', 'Preparing'].includes(o.status))
+                    .sort((a, b) => {
+                        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                        return dateA - dateB; // Oldest first (FIFO)
+                    });
+                setOrders(kitchenOrders);
+                setLoading(false);
+            },
+            [where('businessId', '==', userData.businessId)]
+        );
         return unsub;
-    }, []);
+    }, [userData]);
 
     const startPreparing = async (order) => {
         try {

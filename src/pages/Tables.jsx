@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, addDocument, updateDocument, deleteDocument } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
@@ -25,7 +26,7 @@ const statusDots = {
 };
 
 const Tables = () => {
-    const { isAdmin } = useAuth();
+    const { isManager, isCashier, userData } = useAuth();
     const [tables, setTables] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -43,14 +44,20 @@ const Tables = () => {
     const floors = Array.from(new Set(tables.map(t => t.floor || 'Ground Floor'))).sort();
 
     useEffect(() => {
-        const unsub = listenToCollection('tables', (data) => {
-            // Sort by table number
-            data.sort((a, b) => a.tableNumber - b.tableNumber);
-            setTables(data);
-            setLoading(false);
-        });
+        if (!userData?.businessId) return;
+
+        const unsub = listenToCollection(
+            'tables',
+            (data) => {
+                // Sort by table number
+                data.sort((a, b) => a.tableNumber - b.tableNumber);
+                setTables(data);
+                setLoading(false);
+            },
+            [where('businessId', '==', userData.businessId)]
+        );
         return unsub;
-    }, []);
+    }, [userData]);
 
     const resetForm = () => {
         setFormData({ tableNumber: '', capacity: '', status: 'Available', floor: floors[0] || 'Ground Floor' });
@@ -99,6 +106,7 @@ const Tables = () => {
                     capacity: Number(capacity),
                     status,
                     floor,
+                    businessId: userData.businessId,
                 });
                 toast.success('Table added successfully');
             }
@@ -138,7 +146,7 @@ const Tables = () => {
                     <h1 className="page-title">Table Management</h1>
                     <p className="page-subtitle">{tables.length} tables configured</p>
                 </div>
-                {isAdmin && (
+                {(isManager || isCashier) && (
                     <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
                         <IoAddOutline size={20} />
                         Add Table
@@ -219,8 +227,8 @@ const Tables = () => {
                                 ))}
                             </div>
 
-                            {/* Admin actions */}
-                            {isAdmin && (
+                            {/* Manager actions */}
+                            {(isManager || isCashier) && (
                                 <div className="flex justify-center gap-2 mt-3 pt-3 border-t border-current/20">
                                     <button
                                         onClick={() => openEditModal(table)}

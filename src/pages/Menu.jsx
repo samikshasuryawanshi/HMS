@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, addDocument, updateDocument, deleteDocument } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
@@ -19,7 +20,7 @@ import {
 const categories = ['All', 'Starters', 'Main Course', 'Pizza', 'Burgers', 'Pasta', 'Rice & Noodles', 'Salads', 'Desserts', 'Beverages', 'Breads'];
 
 const Menu = () => {
-    const { isAdmin, isManager } = useAuth();
+    const { isManager, isCashier, userData } = useAuth();
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -39,12 +40,18 @@ const Menu = () => {
     });
 
     useEffect(() => {
-        const unsub = listenToCollection('menu', (data) => {
-            setMenuItems(data);
-            setLoading(false);
-        });
+        if (!userData?.businessId) return;
+
+        const unsub = listenToCollection(
+            'menu',
+            (data) => {
+                setMenuItems(data);
+                setLoading(false);
+            },
+            [where('businessId', '==', userData.businessId)]
+        );
         return unsub;
-    }, []);
+    }, [userData]);
 
     const resetForm = () => {
         setFormData({
@@ -117,6 +124,7 @@ const Menu = () => {
                 description: formData.description,
                 imageUrl: formData.imageUrl,
                 available: formData.available,
+                businessId: userData.businessId,
             };
 
             if (editItem) {
@@ -169,7 +177,7 @@ const Menu = () => {
                     <h1 className="page-title">Menu Management</h1>
                     <p className="page-subtitle">{menuItems.length} items in menu</p>
                 </div>
-                {isAdmin && (
+                {(isManager || isCashier) && (
                     <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
                         <IoAddOutline size={20} />
                         Add Item
@@ -255,7 +263,7 @@ const Menu = () => {
 
                                     <div className="flex items-center gap-2">
                                         {/* Availability toggle */}
-                                        {(isAdmin || isManager) && (
+                                        {(isManager || isCashier) && (
                                             <button
                                                 onClick={() => toggleAvailability(item)}
                                                 className={`transition-colors ${item.available ? 'text-emerald-400' : 'text-dark-500'}`}
@@ -266,7 +274,7 @@ const Menu = () => {
                                         )}
 
                                         {/* Edit / Delete */}
-                                        {(isAdmin || isManager) && (
+                                        {(isManager || isCashier) && (
                                             <>
                                                 <button
                                                     onClick={() => openEditModal(item)}

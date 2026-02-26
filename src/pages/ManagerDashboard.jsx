@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, updateDocument } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import StatCard from '../components/StatCard';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
@@ -23,20 +24,25 @@ const ManagerDashboard = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!userData?.businessId) return;
         const unsubs = [];
-        unsubs.push(listenToCollection('orders', (data) => {
-            data.sort((a, b) => {
-                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-                return dateB - dateA;
-            });
-            setOrders(data);
-            setLoading(false);
-        }));
-        unsubs.push(listenToCollection('tables', setTables));
-        unsubs.push(listenToCollection('bills', setBills));
+        unsubs.push(listenToCollection(
+            'orders',
+            (data) => {
+                data.sort((a, b) => {
+                    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                    return dateB - dateA;
+                });
+                setOrders(data);
+                setLoading(false);
+            },
+            [where('businessId', '==', userData.businessId)]
+        ));
+        unsubs.push(listenToCollection('tables', setTables, [where('businessId', '==', userData.businessId)]));
+        unsubs.push(listenToCollection('bills', setBills, [where('businessId', '==', userData.businessId)]));
         return () => unsubs.forEach(u => u());
-    }, []);
+    }, [userData]);
 
     const pendingOrders = orders.filter(o => o.status === 'Pending');
     const activeOrders = orders.filter(o => !['Completed'].includes(o.status));
@@ -71,8 +77,8 @@ const ManagerDashboard = () => {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="page-title">Manager Dashboard</h1>
-                <p className="page-subtitle">Welcome, {userData?.name || 'Manager'} 👋</p>
+                <h1 className="page-title">Cashier Dashboard</h1>
+                <p className="page-subtitle">Welcome, {userData?.name || 'Cashier'} 👋</p>
             </div>
 
             {/* Stats */}

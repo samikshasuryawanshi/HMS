@@ -8,6 +8,8 @@ const ManagerDashboard = lazy(() => import('./ManagerDashboard'));
 const WaiterDashboard = lazy(() => import('./WaiterDashboard'));
 const Kitchen = lazy(() => import('./Kitchen'));
 
+const OwnerDashboard = lazy(() => import('./OwnerDashboard'));
+
 const Dashboard = () => {
     const { userRole, loading } = useAuth();
 
@@ -15,11 +17,12 @@ const Dashboard = () => {
 
     return (
         <Suspense fallback={<Loader />}>
-            {userRole === 'admin' && <AdminDashboard />}
-            {userRole === 'manager' && <ManagerDashboard />}
+            {userRole === 'owner' && <OwnerDashboard />}
+            {userRole === 'manager' && <AdminDashboard />}
+            {userRole === 'cashier' && <ManagerDashboard />}
             {userRole === 'chef' && <Kitchen />}
             {userRole === 'staff' && <WaiterDashboard />}
-            {!userRole && <AdminDashboard />}
+            {!userRole && <OwnerDashboard />}
         </Suspense>
     );
 };

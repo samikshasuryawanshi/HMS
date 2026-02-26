@@ -98,11 +98,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const isAdmin = userRole === 'admin';
+    const isOwner = userRole === 'owner';
     const isManager = userRole === 'manager';
+    const isCashier = userRole === 'cashier';
     const isChef = userRole === 'chef';
     const isStaff = userRole === 'staff';
-    const needsSetup = isAdmin && userData && !userData.businessId;
+    const needsSetup = isOwner && userData && !userData.businessId;
 
     const value = {
         currentUser,
@@ -110,8 +111,9 @@ export const AuthProvider = ({ children }) => {
         userData,
         businessData,
         loading,
-        isAdmin,
+        isOwner,
         isManager,
+        isCashier,
         isChef,
         isStaff,
         needsSetup,

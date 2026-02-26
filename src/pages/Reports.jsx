@@ -1,6 +1,8 @@
 // Reports Page - Sales reports and order history with filters
 import { useState, useEffect, useMemo } from 'react';
 import { listenToCollection } from '../firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+import { where } from 'firebase/firestore';
 import Loader from '../components/Loader';
 import {
     Chart as ChartJS,
@@ -29,6 +31,7 @@ ChartJS.register(
 );
 
 const Reports = () => {
+    const { userData } = useAuth();
     const [bills, setBills] = useState([]);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -37,16 +40,17 @@ const Reports = () => {
     const [tableFilter, setTableFilter] = useState('');
 
     useEffect(() => {
+        if (!userData?.businessId) return;
         const unsubs = [];
         unsubs.push(
             listenToCollection('bills', (data) => {
                 setBills(data);
                 setLoading(false);
-            })
+            }, [where('businessId', '==', userData.businessId)])
         );
-        unsubs.push(listenToCollection('orders', setOrders));
+        unsubs.push(listenToCollection('orders', setOrders, [where('businessId', '==', userData.businessId)]));
         return () => unsubs.forEach(u => u());
-    }, []);
+    }, [userData]);
 
     // Parse date from bill
     const parseBillDate = (bill) => {
@@ -179,8 +183,8 @@ const Reports = () => {
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === tab.key
-                                ? 'bg-primary-600 text-white'
-                                : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
                             }`}
                     >
                         <tab.icon size={16} />

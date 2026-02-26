@@ -7,6 +7,7 @@ import {
     updateDocument,
     deleteDocument,
 } from '../firebase/firestore';
+import { where } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import { toast } from 'react-toastify';
@@ -23,7 +24,7 @@ import {
 } from 'react-icons/io5';
 
 const Bookings = () => {
-    const { isAdmin } = useAuth();
+    const { isManager, isCashier, userData } = useAuth();
     const [bookings, setBookings] = useState([]);
     const [tables, setTables] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -43,19 +44,23 @@ const Bookings = () => {
     useEffect(() => {
         const unsubs = [];
         unsubs.push(
-            listenToCollection('bookings', (data) => {
-                data.sort((a, b) => {
-                    const dateA = new Date(`${a.date}T${a.time}`);
-                    const dateB = new Date(`${b.date}T${b.time}`);
-                    return dateB - dateA;
-                });
-                setBookings(data);
-                setLoading(false);
-            })
+            listenToCollection(
+                'bookings',
+                (data) => {
+                    data.sort((a, b) => {
+                        const dateA = new Date(`${a.date}T${a.time}`);
+                        const dateB = new Date(`${b.date}T${b.time}`);
+                        return dateB - dateA;
+                    });
+                    setBookings(data);
+                    setLoading(false);
+                },
+                [where('businessId', '==', userData?.businessId)]
+            )
         );
-        unsubs.push(listenToCollection('tables', setTables));
+        unsubs.push(listenToCollection('tables', setTables, [where('businessId', '==', userData?.businessId)]));
         return () => unsubs.forEach((u) => u());
-    }, []);
+    }, [userData]);
 
     const resetForm = () => {
         setFormData({
@@ -87,6 +92,7 @@ const Bookings = () => {
                 numberOfPeople: Number(numberOfPeople),
                 tableNumber: Number(tableNumber),
                 status: 'Reserved',
+                businessId: userData?.businessId,
             });
 
             // Update table status to Reserved
@@ -176,8 +182,8 @@ const Bookings = () => {
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${filter === f
-                                ? 'bg-primary-600 text-white'
-                                : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
                             }`}
                     >
                         {f}{' '}
@@ -252,7 +258,7 @@ const Bookings = () => {
                                     </button>
                                 </div>
                             )}
-                            {booking.status !== 'Reserved' && isAdmin && (
+                            {booking.status !== 'Reserved' && (isManager || isCashier) && (
                                 <div className="flex justify-end pt-3 border-t border-dark-700/50">
                                     <button
                                         onClick={() => handleDelete(booking)}
