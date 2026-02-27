@@ -1,4 +1,3 @@
-// Tables Management Page - Grid view with CRUD operations
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { listenToCollection, addDocument, updateDocument, deleteDocument } from '../firebase/firestore';
@@ -11,18 +10,32 @@ import {
     IoCreateOutline,
     IoTrashOutline,
     IoPeopleOutline,
+    IoLayersOutline,
+    IoEllipsisVertical
 } from 'react-icons/io5';
 
-const statusColors = {
-    Available: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
-    Occupied: 'bg-red-500/20 border-red-500/30 text-red-400',
-    Reserved: 'bg-amber-500/20 border-amber-500/30 text-amber-400',
-};
-
-const statusDots = {
-    Available: 'bg-emerald-400',
-    Occupied: 'bg-red-400',
-    Reserved: 'bg-amber-400',
+const statusThemes = {
+    Available: {
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/20',
+        text: 'text-emerald-400',
+        dot: 'bg-emerald-400',
+        shadow: 'shadow-emerald-500/10'
+    },
+    Occupied: {
+        bg: 'bg-rose-500/10',
+        border: 'border-rose-500/20',
+        text: 'text-rose-400',
+        dot: 'bg-rose-400',
+        shadow: 'shadow-rose-500/10'
+    },
+    Reserved: {
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20',
+        text: 'text-amber-400',
+        dot: 'bg-amber-400',
+        shadow: 'shadow-amber-500/10'
+    },
 };
 
 const Tables = () => {
@@ -40,7 +53,6 @@ const Tables = () => {
     const [activeFloor, setActiveFloor] = useState('All');
     const [isCreatingFloor, setIsCreatingFloor] = useState(false);
 
-    // Derive unique floors from tables
     const floors = Array.from(new Set(tables.map(t => t.floor || 'Ground Floor'))).sort();
 
     useEffect(() => {
@@ -49,7 +61,6 @@ const Tables = () => {
         const unsub = listenToCollection(
             'tables',
             (data) => {
-                // Sort by table number
                 data.sort((a, b) => a.tableNumber - b.tableNumber);
                 setTables(data);
                 setLoading(false);
@@ -65,10 +76,7 @@ const Tables = () => {
         setIsCreatingFloor(false);
     };
 
-    const openAddModal = () => {
-        resetForm();
-        setModalOpen(true);
-    };
+    const openAddModal = () => { resetForm(); setModalOpen(true); };
 
     const openEditModal = (table) => {
         setEditTable(table);
@@ -85,30 +93,23 @@ const Tables = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         const { tableNumber, capacity, status, floor } = formData;
-
-        if (!tableNumber || !capacity) {
-            toast.error('Please fill in all fields');
-            return;
-        }
+        if (!tableNumber || !capacity) return toast.error('Please fill in all fields');
 
         try {
+            const payload = {
+                tableNumber: Number(tableNumber),
+                capacity: Number(capacity),
+                status,
+                floor,
+                businessId: userData.businessId
+            };
+
             if (editTable) {
-                await updateDocument('tables', editTable.id, {
-                    tableNumber: Number(tableNumber),
-                    capacity: Number(capacity),
-                    status,
-                    floor,
-                });
-                toast.success('Table updated successfully');
+                await updateDocument('tables', editTable.id, payload);
+                toast.success('Table updated');
             } else {
-                await addDocument('tables', {
-                    tableNumber: Number(tableNumber),
-                    capacity: Number(capacity),
-                    status,
-                    floor,
-                    businessId: userData.businessId,
-                });
-                toast.success('Table added successfully');
+                await addDocument('tables', payload);
+                toast.success('Table added');
             }
             setModalOpen(false);
             resetForm();
@@ -130,186 +131,177 @@ const Tables = () => {
     const handleStatusChange = async (table, newStatus) => {
         try {
             await updateDocument('tables', table.id, { status: newStatus });
-            toast.success(`Table ${table.tableNumber} → ${newStatus}`);
         } catch (error) {
-            toast.error('Error updating status');
+            toast.error('Update failed');
         }
     };
 
     if (loading) return <Loader />;
 
+    const filteredTables = activeFloor === 'All' 
+        ? tables 
+        : tables.filter(t => (t.floor || 'Ground Floor') === activeFloor);
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="page-title">Table Management</h1>
-                    <p className="page-subtitle">{tables.length} tables configured</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-12">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+                <div className="space-y-1">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-white">Floor Plan</h1>
+                    <p className="text-dark-400 flex items-center gap-2">
+                        <IoLayersOutline className="text-primary-500" />
+                        {tables.length} tables across {floors.length} levels
+                    </p>
                 </div>
+                
                 {(isManager || isCashier) && (
-                    <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
-                        <IoAddOutline size={20} />
-                        Add Table
+                    <button 
+                        onClick={openAddModal} 
+                        className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-6 py-3 rounded-2xl font-bold transition-all active:scale-95 shadow-lg shadow-primary-600/20 w-full sm:w-auto"
+                    >
+                        <IoAddOutline size={24} />
+                        Add New Table
                     </button>
                 )}
             </div>
 
-            {/* Status Legend */}
-            <div className="flex flex-wrap gap-4">
-                {Object.entries(statusDots).map(([status, color]) => (
-                    <div key={status} className="flex items-center gap-2 text-sm text-dark-300">
-                        <div className={`w-3 h-3 rounded-full ${color}`} />
-                        {status} ({tables.filter(t => t.status === status).length})
-                    </div>
-                ))}
-            </div>
-
-            {/* Floor Filter Tabs */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {['All', ...floors].map(floorName => (
-                    <button
-                        key={floorName}
-                        onClick={() => setActiveFloor(floorName)}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap ${activeFloor === floorName
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700'
+            {/* Sticky Floor Navigation */}
+            <div className="sticky top-0 z-10 -mx-4 px-4 bg-dark-950/80 backdrop-blur-md py-4 mb-6 border-b border-dark-800">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                    {['All', ...floors].map(floorName => (
+                        <button
+                            key={floorName}
+                            onClick={() => setActiveFloor(floorName)}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap border-2 ${
+                                activeFloor === floorName
+                                    ? 'bg-white text-dark-950 border-white'
+                                    : 'bg-dark-800 text-dark-400 border-transparent hover:border-dark-700'
                             }`}
-                    >
-                        {floorName}
-                    </button>
-                ))}
+                        >
+                            {floorName}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Tables Grid */}
+            {/* Main Content Grid */}
             {tables.length === 0 ? (
-                <div className="glass-card p-12 text-center">
-                    <div className="text-6xl mb-4">🪑</div>
-                    <h3 className="text-lg font-semibold text-white mb-2">No Tables Found</h3>
-                    <p className="text-dark-400">Add your first table to get started.</p>
+                <div className="flex flex-col items-center justify-center py-20 bg-dark-900/50 rounded-3xl border-2 border-dashed border-dark-800">
+                    <div className="w-20 h-20 bg-dark-800 rounded-full flex items-center justify-center text-4xl mb-4">🪑</div>
+                    <h3 className="text-xl font-bold text-white">No Tables Configured</h3>
+                    <p className="text-dark-400 mt-1">Start by adding your restaurant layout.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {(activeFloor === 'All' ? tables : tables.filter(t => (t.floor || 'Ground Floor') === activeFloor)).map((table) => (
-                        <div
-                            key={table.id}
-                            className={`border rounded-2xl p-5 text-center transition-all duration-300 hover:scale-[1.03] ${statusColors[table.status]}`}
-                        >
-                            <div className="text-3xl font-bold text-white mb-1">
-                                {table.tableNumber}
-                            </div>
-                            <div className="text-xs font-semibold text-primary-400 opacity-90 mb-3 uppercase tracking-wider">
-                                {table.floor || 'Ground Floor'}
-                            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {filteredTables.map((table) => {
+                        const theme = statusThemes[table.status];
+                        return (
+                            <div
+                                key={table.id}
+                                className={`group relative overflow-hidden rounded-3xl border-2 transition-all duration-300 ${theme.bg} ${theme.border} ${theme.shadow} hover:shadow-xl`}
+                            >
+                                <div className="p-5">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <span className="text-xs font-black uppercase tracking-widest text-dark-400 block mb-1">
+                                                {table.floor}
+                                            </span>
+                                            <h2 className="text-4xl font-black text-white">#{table.tableNumber}</h2>
+                                        </div>
+                                        <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 ${theme.bg} ${theme.text} border ${theme.border}`}>
+                                            <span className={`w-2 h-2 rounded-full ${theme.dot} animate-pulse`} />
+                                            {table.status}
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-center justify-center gap-1 text-sm mb-3">
-                                <IoPeopleOutline size={14} />
-                                <span>{table.capacity} seats</span>
-                            </div>
+                                    <div className="flex items-center gap-4 text-dark-300 mb-6">
+                                        <div className="flex items-center gap-1.5 bg-dark-950/40 px-3 py-1.5 rounded-lg">
+                                            <IoPeopleOutline className="text-primary-400" size={18} />
+                                            <span className="font-bold">{table.capacity} Seats</span>
+                                        </div>
+                                    </div>
 
-                            {/* Status badge */}
-                            <div className="flex items-center justify-center gap-1.5 mb-4">
-                                <div className={`w-2 h-2 rounded-full ${statusDots[table.status]} animate-pulse`} />
-                                <span className="text-xs font-medium">{table.status}</span>
-                            </div>
-
-                            {/* Quick status toggle */}
-                            <div className="flex gap-1 justify-center flex-wrap">
-                                {['Available', 'Occupied', 'Reserved'].map(status => (
-                                    status !== table.status && (
-                                        <button
-                                            key={status}
-                                            onClick={() => handleStatusChange(table, status)}
-                                            className="text-[10px] px-2 py-1 rounded-lg bg-dark-900/50 hover:bg-dark-900 text-dark-300 hover:text-white transition-colors"
-                                        >
-                                            {status}
-                                        </button>
-                                    )
-                                ))}
-                            </div>
-
-                            {/* Manager actions */}
-                            {(isManager || isCashier) && (
-                                <div className="flex justify-center gap-2 mt-3 pt-3 border-t border-current/20">
-                                    <button
-                                        onClick={() => openEditModal(table)}
-                                        className="p-1.5 rounded-lg hover:bg-dark-900/50 text-dark-300 hover:text-white transition-colors"
-                                    >
-                                        <IoCreateOutline size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(table)}
-                                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-dark-300 hover:text-red-400 transition-colors"
-                                    >
-                                        <IoTrashOutline size={16} />
-                                    </button>
+                                    {/* Action Zone */}
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['Available', 'Occupied', 'Reserved']
+                                                .filter(s => s !== table.status)
+                                                .map(status => (
+                                                    <button
+                                                        key={status}
+                                                        onClick={() => handleStatusChange(table, status)}
+                                                        className="text-[11px] font-bold py-2 rounded-xl bg-dark-950/50 hover:bg-dark-950 text-dark-300 hover:text-white transition-all border border-transparent hover:border-dark-700"
+                                                    >
+                                                        Set {status}
+                                                    </button>
+                                                ))}
+                                        </div>
+                                        
+                                        {(isManager || isCashier) && (
+                                            <div className="flex gap-2 pt-3 border-t border-dark-800/50">
+                                                <button
+                                                    onClick={() => openEditModal(table)}
+                                                    className="flex-1 flex justify-center py-2 rounded-xl bg-dark-800/50 text-dark-300 hover:bg-primary-600 hover:text-white transition-all"
+                                                >
+                                                    <IoCreateOutline size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(table)}
+                                                    className="flex-1 flex justify-center py-2 rounded-xl bg-dark-800/50 text-dark-300 hover:bg-rose-600 hover:text-white transition-all"
+                                                >
+                                                    <IoTrashOutline size={18} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Add/Edit Modal */}
+            {/* Modal Redesign */}
             <Modal
                 isOpen={modalOpen}
                 onClose={() => { setModalOpen(false); resetForm(); }}
-                title={editTable ? 'Edit Table' : 'Add New Table'}
+                title={editTable ? 'Edit Table Configuration' : 'Create New Table'}
             >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="label-text">Table Number</label>
-                        <input
-                            type="number"
-                            value={formData.tableNumber}
-                            onChange={(e) => setFormData({ ...formData, tableNumber: e.target.value })}
-                            placeholder="e.g. 1, 2, 3..."
-                            className="input-field"
-                            min="1"
-                        />
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-dark-400 uppercase ml-1">Table #</label>
+                            <input
+                                type="number"
+                                value={formData.tableNumber}
+                                onChange={(e) => setFormData({ ...formData, tableNumber: e.target.value })}
+                                className="w-full bg-dark-900 border-2 border-dark-800 rounded-2xl px-4 py-3 focus:border-primary-500 outline-none text-white transition-all"
+                                placeholder="101"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-dark-400 uppercase ml-1">Capacity</label>
+                            <input
+                                type="number"
+                                value={formData.capacity}
+                                onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                                className="w-full bg-dark-900 border-2 border-dark-800 rounded-2xl px-4 py-3 focus:border-primary-500 outline-none text-white transition-all"
+                                placeholder="4"
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label className="label-text">Capacity (Seats)</label>
-                        <input
-                            type="number"
-                            value={formData.capacity}
-                            onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                            placeholder="e.g. 2, 4, 6..."
-                            className="input-field"
-                            min="1"
-                        />
-                    </div>
-                    <div>
-                        <label className="label-text">Status</label>
-                        <select
-                            value={formData.status}
-                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                            className="select-field"
-                        >
-                            <option value="Available">Available</option>
-                            <option value="Occupied">Occupied</option>
-                            <option value="Reserved">Reserved</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label-text">Floor</label>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-dark-400 uppercase ml-1">Location / Floor</label>
                         {!isCreatingFloor ? (
                             <div className="flex gap-2">
                                 <select
                                     value={formData.floor}
-                                    onChange={(e) => {
-                                        if (e.target.value === 'NEW_FLOOR') {
-                                            setIsCreatingFloor(true);
-                                            setFormData({ ...formData, floor: '' });
-                                        } else {
-                                            setFormData({ ...formData, floor: e.target.value });
-                                        }
-                                    }}
-                                    className="select-field flex-1"
+                                    onChange={(e) => e.target.value === 'NEW_FLOOR' ? setIsCreatingFloor(true) : setFormData({ ...formData, floor: e.target.value })}
+                                    className="flex-1 bg-dark-900 border-2 border-dark-800 rounded-2xl px-4 py-3 focus:border-primary-500 outline-none text-white"
                                 >
-                                    {floors.map(f => (
-                                        <option key={f} value={f}>{f}</option>
-                                    ))}
-                                    <option value="NEW_FLOOR" className="text-primary-400 font-medium">+ Add New Floor...</option>
+                                    {floors.map(f => <option key={f} value={f}>{f}</option>)}
+                                    <option value="NEW_FLOOR">+ Create New Floor...</option>
                                 </select>
                             </div>
                         ) : (
@@ -318,35 +310,31 @@ const Tables = () => {
                                     type="text"
                                     value={formData.floor}
                                     onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                                    placeholder="Enter new floor name..."
-                                    className="input-field flex-1"
+                                    placeholder="e.g., Rooftop"
+                                    className="flex-1 bg-dark-900 border-2 border-primary-500/50 rounded-2xl px-4 py-3 outline-none text-white"
                                     autoFocus
-                                    required
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsCreatingFloor(false);
-                                        setFormData({ ...formData, floor: floors[0] || 'Ground Floor' });
-                                    }}
-                                    className="px-4 rounded-xl bg-dark-800 text-dark-300 hover:text-white transition-colors"
-                                    title="Cancel new floor"
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsCreatingFloor(false)}
+                                    className="px-4 text-dark-400 hover:text-white font-bold"
                                 >
-                                    Cancel
+                                    Back
                                 </button>
                             </div>
                         )}
                     </div>
-                    <div className="flex gap-3 pt-2">
-                        <button type="submit" className="btn-primary flex-1">
-                            {editTable ? 'Update Table' : 'Add Table'}
+
+                    <div className="flex gap-3 pt-4">
+                        <button type="submit" className="flex-[2] bg-primary-600 hover:bg-primary-500 py-4 rounded-2xl font-black text-white shadow-lg shadow-primary-600/20 transition-all active:scale-95">
+                            {editTable ? 'SAVE CHANGES' : 'CREATE TABLE'}
                         </button>
-                        <button
-                            type="button"
+                        <button 
+                            type="button" 
                             onClick={() => { setModalOpen(false); resetForm(); }}
-                            className="btn-secondary flex-1"
+                            className="flex-1 bg-dark-800 hover:bg-dark-700 py-4 rounded-2xl font-bold text-dark-300 transition-all"
                         >
-                            Cancel
+                            CANCEL
                         </button>
                     </div>
                 </form>

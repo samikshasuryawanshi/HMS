@@ -1,11 +1,6 @@
-// Bills Page - Billing system with GST calculation and receipt generation
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import {
-    listenToCollection,
-    addDocument,
-    deleteDocument,
-} from '../firebase/firestore';
+import { listenToCollection, addDocument, deleteDocument } from '../firebase/firestore';
 import { where } from 'firebase/firestore';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
@@ -17,6 +12,9 @@ import {
     IoTrashOutline,
     IoReceiptOutline,
     IoCalendarOutline,
+    IoWalletOutline,
+    IoCheckmarkCircle,
+    IoChevronForward
 } from 'react-icons/io5';
 
 const Bills = () => {
@@ -30,6 +28,8 @@ const Bills = () => {
 
     useEffect(() => {
         const unsubs = [];
+        if (!userData?.businessId) return;
+
         unsubs.push(
             listenToCollection(
                 'bills',
@@ -42,26 +42,25 @@ const Bills = () => {
                     setBills(data);
                     setLoading(false);
                 },
-                [where('businessId', '==', userData?.businessId)]
+                [where('businessId', '==', userData.businessId)]
             )
         );
-        unsubs.push(listenToCollection('orders', setOrders, [where('businessId', '==', userData?.businessId)]));
+
+        unsubs.push(
+            listenToCollection(
+                'orders', 
+                setOrders, 
+                [where('businessId', '==', userData.businessId)]
+            )
+        );
+
         return () => unsubs.forEach((u) => u());
     }, [userData]);
 
-    // Completed orders that haven't been billed yet
     const completedOrders = orders.filter((o) => {
         if (o.status !== 'Completed') return false;
-        // Check if already billed
-        const alreadyBilled = bills.some(
-            (b) => b.orderId === o.id
-        );
-        return !alreadyBilled;
+        return !bills.some((b) => b.orderId === o.id);
     });
-
-    const handleSelectOrder = (order) => {
-        setSelectedOrder(order);
-    };
 
     const calculateBill = () => {
         if (!selectedOrder) return { subtotal: 0, gst: 0, total: 0 };
@@ -74,10 +73,7 @@ const Bills = () => {
     const { subtotal, gst, total } = calculateBill();
 
     const handleGenerateBill = async () => {
-        if (!selectedOrder) {
-            toast.error('Please select an order');
-            return;
-        }
+        if (!selectedOrder) return toast.error('Please select an order');
 
         try {
             const billData = {
@@ -93,7 +89,7 @@ const Bills = () => {
             };
 
             await addDocument('bills', billData);
-            toast.success('Bill generated!');
+            toast.success('Bill generated successfully');
             setModalOpen(false);
             setSelectedOrder(null);
         } catch (error) {
@@ -104,33 +100,30 @@ const Bills = () => {
     const handlePrintReceipt = (bill) => {
         try {
             generateReceipt(bill);
-            toast.success('Receipt downloaded!');
+            toast.success('Receipt ready');
         } catch (error) {
-            toast.error('Error generating receipt');
-            console.error(error);
-        }
-    };
-
-    const handleDelete = async (bill) => {
-        if (!window.confirm('Delete this bill?')) return;
-        try {
-            await deleteDocument('bills', bill.id);
-            toast.success('Bill deleted');
-        } catch (error) {
-            toast.error('Error deleting bill');
+            toast.error('Print failed');
         }
     };
 
     if (loading) return <Loader />;
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="page-title">Billing</h1>
-                    <p className="page-subtitle">{bills.length} bills generated</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
+            {/* Header with Quick Stats */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                <div className="space-y-1">
+                    <h1 className="text-3xl font-black text-white tracking-tight">Billing Center</h1>
+                    <div className="flex items-center gap-4 text-dark-400 text-sm">
+                        <span className="flex items-center gap-1">
+                            <IoReceiptOutline className="text-primary-500" /> {bills.length} Total Bills
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <IoWalletOutline className="text-emerald-500" /> ₹{bills.reduce((acc, curr) => acc + curr.total, 0).toLocaleString()} Revenue
+                        </span>
+                    </div>
                 </div>
+
                 {(isManager || isCashier || userData?.role === 'owner') && (
                     <button
                         onClick={() => {
@@ -138,105 +131,91 @@ const Bills = () => {
                             setGstPercent(5);
                             setModalOpen(true);
                         }}
-                        className="btn-primary flex items-center gap-2"
+                        className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-8 py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-lg shadow-primary-600/20"
                     >
-                        <IoAddOutline size={20} />
-                        Generate Bill
+                        <IoAddOutline size={24} />
+                        New Transaction
                     </button>
                 )}
             </div>
 
-            {/* Bills List */}
+            {/* Bills Grid */}
             {bills.length === 0 ? (
-                <div className="glass-card p-12 text-center">
-                    <div className="text-6xl mb-4">🧾</div>
-                    <h3 className="text-lg font-semibold text-white mb-2">No Bills Yet</h3>
-                    <p className="text-dark-400">Generate your first bill from a completed order.</p>
+                <div className="flex flex-col items-center justify-center py-24 bg-dark-900/40 rounded-[2rem] border-2 border-dashed border-dark-800">
+                    <div className="w-24 h-24 bg-dark-800 rounded-full flex items-center justify-center text-5xl mb-6">🧾</div>
+                    <h3 className="text-2xl font-bold text-white">No Bills Found</h3>
+                    <p className="text-dark-400 max-w-xs text-center mt-2">Generate bills from completed orders to see your history here.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {bills.map((bill) => {
-                        const billDate = bill.date?.toDate
-                            ? bill.date.toDate()
-                            : new Date(bill.date);
-
+                        const billDate = bill.date?.toDate ? bill.date.toDate() : new Date(bill.date);
                         return (
-                            <div key={bill.id} className="glass-card-hover p-5">
-                                {/* Header */}
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-primary-500/20 text-primary-400">
-                                            <IoReceiptOutline size={20} />
+                            <div key={bill.id} className="relative group bg-dark-900 border border-dark-800 rounded-[2rem] overflow-hidden hover:border-dark-700 transition-all duration-300">
+                                {/* Receipt Header Styling */}
+                                <div className="p-6 pb-4 border-b border-dashed border-dark-700">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="bg-primary-500/10 text-primary-400 p-3 rounded-2xl">
+                                            <IoReceiptOutline size={24} />
                                         </div>
-                                        <div>
-                                            <h3 className="text-white font-semibold">
-                                                Table {bill.tableNumber}
-                                            </h3>
-                                            <p className="text-dark-400 text-xs flex items-center gap-1">
-                                                <IoCalendarOutline size={12} />
-                                                {billDate.toLocaleDateString('en-IN', {
-                                                    day: '2-digit',
-                                                    month: 'short',
-                                                    year: 'numeric',
-                                                })}
-                                            </p>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-dark-500 uppercase tracking-widest leading-none mb-1">Receipt ID</p>
+                                            <p className="text-xs font-mono text-dark-300">#{bill.id?.slice(-8).toUpperCase()}</p>
                                         </div>
                                     </div>
-                                    <span className="text-xs text-dark-500">
-                                        #{bill.id?.slice(0, 6)}
-                                    </span>
-                                </div>
-
-                                {/* Items summary */}
-                                <div className="space-y-1.5 mb-4 text-sm">
-                                    {bill.items?.slice(0, 3).map((item, idx) => (
-                                        <div key={idx} className="flex justify-between text-dark-300">
-                                            <span>
-                                                {item.name} × {item.quantity}
-                                            </span>
-                                            <span>₹{(item.price * item.quantity).toFixed(0)}</span>
-                                        </div>
-                                    ))}
-                                    {bill.items?.length > 3 && (
-                                        <p className="text-dark-500 text-xs">
-                                            +{bill.items.length - 3} more items...
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Totals */}
-                                <div className="space-y-1.5 pt-3 border-t border-dark-700/50 text-sm">
-                                    <div className="flex justify-between text-dark-400">
-                                        <span>Subtotal</span>
-                                        <span>₹{bill.subtotal?.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-dark-400">
-                                        <span>GST ({bill.gstPercent || 5}%)</span>
-                                        <span>₹{bill.gst?.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-lg font-bold pt-1">
-                                        <span className="text-white">Total</span>
-                                        <span className="text-primary-400">₹{bill.total?.toFixed(2)}</span>
+                                    <h3 className="text-xl font-bold text-white mb-1">Table {bill.tableNumber}</h3>
+                                    <div className="flex items-center gap-2 text-dark-400 text-xs font-medium">
+                                        <IoCalendarOutline />
+                                        {billDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                                     </div>
                                 </div>
 
-                                {/* Actions */}
-                                <div className="flex gap-2 mt-4 pt-3 border-t border-dark-700/50">
-                                    <button
-                                        onClick={() => handlePrintReceipt(bill)}
-                                        className="flex-1 btn-secondary py-2 text-sm flex items-center justify-center gap-1.5"
-                                    >
-                                        <IoDownloadOutline size={16} />
-                                        Receipt
-                                    </button>
-                                    {(isManager || isCashier) && (
+                                {/* Items Section */}
+                                <div className="p-6 space-y-3">
+                                    <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                        {bill.items?.map((item, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-sm">
+                                                <span className="text-dark-300">
+                                                    <span className="font-bold text-white">{item.quantity}x</span> {item.name}
+                                                </span>
+                                                <span className="font-mono text-dark-200">₹{item.price * item.quantity}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Pricing Breakdown */}
+                                    <div className="pt-4 mt-4 border-t border-dark-800 space-y-2">
+                                        <div className="flex justify-between text-xs text-dark-400">
+                                            <span>Subtotal</span>
+                                            <span>₹{bill.subtotal?.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-dark-400">
+                                            <span>Tax (GST {bill.gstPercent}%)</span>
+                                            <span>₹{bill.gst?.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-end pt-2">
+                                            <span className="text-sm font-bold text-white">Total Amount</span>
+                                            <span className="text-2xl font-black text-primary-400">₹{bill.total?.toFixed(0)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2 pt-4">
                                         <button
-                                            onClick={() => handleDelete(bill)}
-                                            className="p-2 rounded-xl hover:bg-red-500/20 text-dark-400 hover:text-red-400 transition-colors"
+                                            onClick={() => handlePrintReceipt(bill)}
+                                            className="flex-1 flex items-center justify-center gap-2 bg-dark-800 hover:bg-dark-700 text-white py-3 rounded-xl text-sm font-bold transition-all"
                                         >
-                                            <IoTrashOutline size={18} />
+                                            <IoDownloadOutline size={18} /> Receipt
                                         </button>
-                                    )}
+                                        {(isManager || isCashier) && (
+                                            <button
+                                                onClick={() => handleDelete(bill)}
+                                                className="px-4 bg-dark-800 hover:bg-rose-500/20 text-dark-400 hover:text-rose-500 rounded-xl transition-all"
+                                            >
+                                                <IoTrashOutline size={20} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -244,119 +223,94 @@ const Bills = () => {
                 </div>
             )}
 
-            {/* Generate Bill Modal */}
+            {/* Modal for Bill Generation */}
             <Modal
                 isOpen={modalOpen}
                 onClose={() => setModalOpen(false)}
-                title="Generate Bill"
+                title="Process Billing"
                 size="lg"
             >
-                <div className="space-y-5">
-                    {/* Select completed order */}
-                    <div>
-                        <label className="label-text">Select Completed Order</label>
+                <div className="space-y-8 py-2">
+                    {/* Step 1: Select Order */}
+                    <div className="space-y-3">
+                        <label className="text-xs font-black text-dark-500 uppercase tracking-widest px-1">1. Select Completed Order</label>
                         {completedOrders.length === 0 ? (
-                            <p className="text-dark-400 text-sm py-4 text-center bg-dark-800 rounded-xl">
-                                No completed orders available for billing.
-                            </p>
+                            <div className="bg-dark-900 border-2 border-dashed border-dark-800 rounded-3xl p-8 text-center">
+                                <p className="text-dark-400 font-medium">No pending orders found for billing.</p>
+                            </div>
                         ) : (
-                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto p-1">
                                 {completedOrders.map((order) => (
-                                    <div
+                                    <button
                                         key={order.id}
                                         onClick={() => handleSelectOrder(order)}
-                                        className={`p-3 rounded-xl cursor-pointer transition-all ${selectedOrder?.id === order.id
-                                            ? 'bg-primary-600/20 border border-primary-500/30'
-                                            : 'bg-dark-800 hover:bg-dark-700 border border-transparent'
-                                            }`}
+                                        className={`p-4 rounded-2xl text-left border-2 transition-all ${
+                                            selectedOrder?.id === order.id
+                                                ? 'bg-primary-500/10 border-primary-500 ring-4 ring-primary-500/10'
+                                                : 'bg-dark-900 border-dark-800 hover:border-dark-700'
+                                        }`}
                                     >
-                                        <div className="flex justify-between">
-                                            <span className="text-white font-medium">
-                                                Table {order.tableNumber}
-                                            </span>
-                                            <span className="text-primary-400 font-semibold">
-                                                ₹{order.totalAmount?.toLocaleString()}
-                                            </span>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-lg font-bold text-white">Table {order.tableNumber}</span>
+                                            {selectedOrder?.id === order.id && <IoCheckmarkCircle className="text-primary-500" size={20} />}
                                         </div>
-                                        <p className="text-dark-400 text-xs mt-1">
-                                            {order.items?.length} items •{' '}
-                                            {order.createdAt?.toDate
-                                                ? order.createdAt.toDate().toLocaleString('en-IN', {
-                                                    day: '2-digit',
-                                                    month: 'short',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })
-                                                : 'N/A'}
-                                        </p>
-                                    </div>
+                                        <p className="text-primary-400 font-black text-lg">₹{order.totalAmount?.toLocaleString()}</p>
+                                        <p className="text-[10px] text-dark-500 mt-2 font-bold uppercase">{order.items?.length} items • Just now</p>
+                                    </button>
                                 ))}
                             </div>
                         )}
                     </div>
 
-                    {/* GST Selection */}
-                    <div>
-                        <label className="label-text">GST Rate</label>
-                        <div className="flex gap-3">
+                    {/* Step 2: GST Selector */}
+                    <div className="space-y-3">
+                        <label className="text-xs font-black text-dark-500 uppercase tracking-widest px-1">2. Tax Configuration</label>
+                        <div className="flex bg-dark-900 p-1.5 rounded-2xl border border-dark-800">
                             {[5, 12, 18].map((rate) => (
                                 <button
                                     key={rate}
-                                    type="button"
                                     onClick={() => setGstPercent(rate)}
-                                    className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${gstPercent === rate
-                                        ? 'bg-primary-600 text-white'
-                                        : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
-                                        }`}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+                                        gstPercent === rate
+                                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                                            : 'text-dark-400 hover:text-white'
+                                    }`}
                                 >
-                                    {rate}%
+                                    GST {rate}%
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Bill Preview */}
+                    {/* Summary Sidebar Preview */}
                     {selectedOrder && (
-                        <div className="bg-dark-800/50 rounded-xl p-4 space-y-3">
-                            <h4 className="text-white font-semibold">Bill Preview</h4>
-                            {selectedOrder.items?.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-sm text-dark-300">
-                                    <span>
-                                        {item.name} × {item.quantity}
-                                    </span>
-                                    <span>₹{(item.price * item.quantity).toFixed(0)}</span>
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex justify-between items-end mb-6">
+                                <div>
+                                    <h4 className="text-emerald-400 font-bold text-sm uppercase mb-1">Final Settlement</h4>
+                                    <p className="text-white text-3xl font-black">₹{total.toFixed(0)}</p>
                                 </div>
-                            ))}
-                            <div className="border-t border-dark-700 pt-2 space-y-1">
-                                <div className="flex justify-between text-sm text-dark-400">
-                                    <span>Subtotal</span>
-                                    <span>₹{subtotal.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-dark-400">
-                                    <span>GST ({gstPercent}%)</span>
-                                    <span>₹{gst.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-lg font-bold pt-1">
-                                    <span className="text-white">Total</span>
-                                    <span className="text-primary-400">₹{total.toFixed(2)}</span>
+                                <div className="text-right">
+                                    <p className="text-dark-400 text-xs">GST Portion: ₹{gst.toFixed(2)}</p>
+                                    <p className="text-dark-400 text-xs">Subtotal: ₹{subtotal.toFixed(2)}</p>
                                 </div>
                             </div>
+                            
+                            <button
+                                onClick={handleGenerateBill}
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95"
+                            >
+                                CONFIRM & GENERATE BILL <IoChevronForward />
+                            </button>
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            onClick={handleGenerateBill}
-                            disabled={!selectedOrder}
-                            className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Generate Bill
-                        </button>
+                    <div className="flex justify-center">
                         <button
                             onClick={() => setModalOpen(false)}
-                            className="btn-secondary flex-1"
+                            className="text-dark-500 hover:text-white text-sm font-bold transition-all"
                         >
-                            Cancel
+                            Nevermind, go back
                         </button>
                     </div>
                 </div>

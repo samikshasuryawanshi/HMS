@@ -15,7 +15,7 @@ const Loader = ({ fullPage = true, size = 'lg' }) => {
     }
 
     return (
-        <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center gap-4">
+        <div className="min-h-screen bg-custom-gradient flex flex-col items-center justify-center gap-4">
             {spinner}
             <p className="text-dark-400 text-sm animate-pulse">Loading...</p>
         </div>

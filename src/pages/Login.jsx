@@ -140,7 +140,7 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-dark-950 flex shadow-2xl items-center justify-center p-4">
+        <div className="min-h-screen bg-custom-gradient flex shadow-2xl items-center justify-center p-4">
             {/* Background decoration */}
             <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl opacity-50" />

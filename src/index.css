@@ -5,6 +5,12 @@
 
 /* Import Google Font */
 
+@layer utilities {
+  .bg-custom-gradient {
+    background: linear-gradient(135deg, #111111 0%, #161616 50%, #111111 100%);
+  }
+}
+
 /* Custom base styles */
 @layer base {
   * {
@@ -14,7 +20,7 @@
   }
 
   body {
-    @apply bg-dark-950 text-white font-sans antialiased;
+    @apply bg-custom-gradient text-white font-sans antialiased;
   }
 
   ::-webkit-scrollbar {
